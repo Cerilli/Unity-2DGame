@@ -14,6 +14,7 @@ public class GameManager
 
 	public int Points {get; private set;}
 
+
 	// This is an empty constructor that doesn't take an parameters. Because it's private
 	// it means nobody other than the GameManager can instance it. By setting this to private, it means
 	// nobody else can instantiate it. 

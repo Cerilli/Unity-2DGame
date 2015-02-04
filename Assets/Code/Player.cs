@@ -41,6 +41,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller = GetComponent<CharacterController2D> ();
 		isFacingRight = transform.localScale.x > 0; // if we are flipped, the localscale.x will be less than one, so we'll know we aren't facing right
 		Health = MaxHealth; 
+		Application.targetFrameRate = 60;
 	}
 
 	public void Update() 

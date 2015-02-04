@@ -98,7 +98,7 @@ public abstract class Projectile : MonoBehaviour
 		// we call the optional method
 
 		// we don't use the generic form of GetComponent ( other.GetComponent<ITakeDamage> ), because ITakeDamage
-		// will will not be inheriting from the base Unity Object class. We have to use the non-generic form of GetComponent
+		// will not be inheriting from the base Unity Object class. We have to use the non-generic form of GetComponent
 		var takeDamage = (ITakeDamage) other.GetComponent(typeof(ITakeDamage));
 		if(takeDamage != null)
 		{

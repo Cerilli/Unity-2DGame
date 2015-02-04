@@ -15,7 +15,7 @@ public class CharacterController2D : MonoBehaviour
 	public LayerMask PlatformMask; 	// A layer mask that will be used for collision detection. 
 
 	[SerializeField]
-	private LayerMask oneWayPlatformMask = 0;
+	private LayerMask oneWayPlatformMask = 10;
 
 	public ControllerParameters2D DefaultParameters; // allows us to edit the default parameters in the inspector
 
@@ -103,6 +103,7 @@ public class CharacterController2D : MonoBehaviour
 	//private bool isCrouching = false;
 	//private bool isSliding = false;
 	private bool canStand = true;
+	private bool DropThrough = false;
 
 	// =======================================
 
@@ -178,9 +179,15 @@ public class CharacterController2D : MonoBehaviour
 	#region ACTION FUNCTIONS
 	public void Jump()
 	{
-
 		if(State.IsGrounded)
 			Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
+
+		// Drop down through one way platform if we are standing on one and press crouch + jump
+		if( StandingOn != null && StandingOn.tag == "OneWayPlatform" && State.IsCrouching)
+		{
+			DropThrough = true;
+			return;
+		}
 
 		var JumpHeight = Parameters.jumpProperties.JumpMagnitude; 
 		//TODO: Moving platform support
@@ -229,7 +236,7 @@ public class CharacterController2D : MonoBehaviour
 			JumpHeight = Parameters.jumpProperties.doubleJumpMagnitude;
 
 		// Jump
-		if(jumpButton && Parameters.jumpProperties.JumpHeightTimer >= 0)
+		if(jumpButton && Parameters.jumpProperties.JumpHeightTimer >= 0 )
 		{
 			_velocity.y = JumpHeight;
 			Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
@@ -271,8 +278,12 @@ public class CharacterController2D : MonoBehaviour
 	{
 		if (!State.IsCrouching)
 		{
+
+			// The value for _boxcollider.center must be manually tweaked for now so that it doesn't cause the player to slightly rise when it's reset upon exiting crouch.
+			// If the player does rise slightly, it cause them to fall through a one way platform
+			_boxCollider.center = new Vector2(_boxCollider.center.x, -1.05f);
 			_boxCollider.size = new Vector2(_boxCollider.size.x, 3.35f);
-			_boxCollider.center = new Vector2(_boxCollider.center.x, -0.8f);
+
 			RecalculateDistanceBetweenRays ();
 
 			GameObject player = GameObject.Find("Capsule");
@@ -291,7 +302,7 @@ public class CharacterController2D : MonoBehaviour
 
 	public void LateUpdate()
 	{
-
+	
 		// Jumping checks / variable height ==
 		#region Jumping Checks
 
@@ -384,6 +395,9 @@ public class CharacterController2D : MonoBehaviour
 		if (State.IsGrounded)
 			doubleJump = false;
 
+		if (DropThrough)
+			DropThrough = false;
+
 	}
 
 	private void Move(Vector2 deltaMovement)
@@ -409,6 +423,8 @@ public class CharacterController2D : MonoBehaviour
 				MoveHorizontally(ref deltaMovement);
 
 			MoveVertically(ref deltaMovement); // we will always be moving vertically, as gravity will always be acting upon us
+
+
 
 			if (detectEdges)EdgeDetect(ref deltaMovement);
 
@@ -481,6 +497,7 @@ public class CharacterController2D : MonoBehaviour
 		// Platforms
 		if (StandingOn != null ) 
 		{
+
 			//Store where the platform is
 			_activeGlobalPlatformPoint = transform.position;
 			_activeLocalPlatformPoint = StandingOn.transform.InverseTransformPoint(transform.position);		
@@ -505,6 +522,7 @@ public class CharacterController2D : MonoBehaviour
 		// Store the last thing we touched while grounded (using this to deactive double jump while bouncing on Jump Pads, for example)
 		if(State.IsGrounded && StandingOn != null)		
 			_lastGroundObject = StandingOn;
+
 
 
 	#endregion
@@ -600,8 +618,6 @@ public class CharacterController2D : MonoBehaviour
 		var rayDistance = Mathf.Abs (deltaMovement.x) + SkinWidth; // the distance of the ray is the movement distance plus the skin width
 		var rayDirection = isGoingRight ? Vector2.right : -Vector2.right; // we use -Vector2.right because Vector2 doesn't have a left constant
 		var rayOrigin = isGoingRight ? _raycastBottomRight : _raycastBottomLeft; // Will set the ray origin to either bottom right or bottom left based on direction we are moving
-
-
 
 		// while wall sliding, only draw one ray at the feet to check for the end of a wall
 		if (isWallSliding)
@@ -711,10 +727,13 @@ public class CharacterController2D : MonoBehaviour
 
 		var standingOnDistance = float.MaxValue;
 
-		// Ignore the oneWayPlatformMask if we're moving upwards
+		// Ignore the oneWayPlatformMask if we're moving upwards, or if we are crouched and press jump
 		var mask = PlatformMask;
-		if( isGoingUp && !wasGroundedLastFrame)
+		if (isGoingUp && StandingOn == null || (State.IsCrouching && DropThrough)) 
+		{
 			mask &= ~oneWayPlatformMask;
+		}
+	
 
 
 
@@ -992,8 +1011,8 @@ public class CharacterController2D : MonoBehaviour
 	{
 		// Set the player's box collider back to whatever it was at level start
 
-		_boxCollider.size = boxColliderOriginalSize;
 		_boxCollider.center = boxColliderOriginalCenter;
+		_boxCollider.size = boxColliderOriginalSize;
 	}
 
 	public void ResetPlayerMeshSize()

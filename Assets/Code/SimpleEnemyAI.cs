@@ -20,11 +20,16 @@ public class SimpleEnemyAI : MonoBehaviour, ITakeDamage, IPlayerRespawnListener
 	private Vector2 _startPosition;
 	private float _canFireIn;
 
+	public void Awake()
+	{
+		_startPosition = transform.position;
+	}
+
 	public void Start()
 	{
 		_controller = GetComponent<CharacterController2D>();
 		_direction = new Vector2 (-1,0);
-		_startPosition = transform.position;
+
 	}
 
 	public void Update()
