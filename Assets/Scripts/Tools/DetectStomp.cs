@@ -28,7 +28,7 @@ public class DetectStomp : MonoBehaviour
 	{
 		if (other.gameObject.tag == "Player")
 		{
-			_enemyGiveDamage.active = false;
+			_enemyGiveDamage.isActive = false;
 			_enemyAI.TakeDamage(50, other.gameObject);
 
 			var _playerController = other.GetComponentInParent<CharacterController2D>();

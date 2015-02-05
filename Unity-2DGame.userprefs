@@ -1,20 +1,22 @@
 ﻿<Properties>
-  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Code\ControllerState2D.cs">
-    <Files>
-      <File FileName="Assets\Code\CharacterController2D.cs" Line="38" Column="58" />
-      <File FileName="Assets\Code\ControllerState2D.cs" Line="18" Column="43" />
-      <File FileName="Assets\Code\Player.cs" Line="53" Column="40" />
-      <File FileName="..\NewProject2\Assets\CorgiEngine\scripts\character\Player.cs" Line="345" Column="31" />
-      <File FileName="..\NewProject2\Assets\CorgiEngine\scripts\character\CorgiController2D.cs" Line="165" Column="79" />
-      <File FileName="Assets\Code\ControllerParameters2D.cs" Line="1" Column="1" />
-    </Files>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.Workbench>
     <Pads>
       <Pad Id="ProjectPad">
         <State expanded="True">
           <Node name="Assembly-CSharp" expanded="True">
-            <Node name="Code" expanded="True">
-              <Node name="ControllerState2D.cs" selected="True" />
+            <Node name="CorgiEngine" expanded="True">
+              <Node name="scripts" expanded="True">
+                <Node name="camera" expanded="True" />
+                <Node name="character" expanded="True" />
+                <Node name="enemies" expanded="True" selected="True" />
+                <Node name="environment" expanded="True" />
+                <Node name="gameManagement" expanded="True" />
+                <Node name="gui" expanded="True" />
+                <Node name="helpers" expanded="True" />
+                <Node name="items" expanded="True" />
+                <Node name="weapons" expanded="True" />
+              </Node>
             </Node>
           </Node>
         </State>

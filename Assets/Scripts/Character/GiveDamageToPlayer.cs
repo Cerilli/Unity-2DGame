@@ -7,7 +7,7 @@ public class GiveDamageToPlayer : MonoBehaviour
 {
 	// Object must not be on platform layer, and IsTrigger must be on
 
-	public bool active = 				  true;
+	public bool isActive = 				  true;
 	public int DamageToGive = 				10;
 
 	// Knock back variables
@@ -39,7 +39,7 @@ public class GiveDamageToPlayer : MonoBehaviour
 
 	public void OnTriggerEnter2D(Collider2D other)
 	{
-		if (active && (other.gameObject.tag == "Player") )
+		if (isActive && (other.gameObject.tag == "Player") )
 		{
 			var player = other.GetComponent<Player> ();
 

@@ -28,7 +28,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	private float _canFireIn;
 	private bool _jumpButtonPressed;
-	private bool _jumpButtonReleased;
+	//private bool _jumpButtonReleased;
 	private float _jumpHeightTimerReset;
 	private float _wallDropTimerReset;
 
@@ -54,6 +54,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller.State.WallJump = false;
 		_controller.State.CanMoveFreely = true;
 		_controller.State.AbleToStand = true;
+
 	}
 
 	public void Update() 
@@ -396,7 +397,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		if (Input.GetButtonDown("Jump")) 
 		{
 			_jumpButtonPressed = true;		
-			_jumpButtonReleased = false;
+			//_jumpButtonReleased = false;
 
 			if(_controller.CanJump)
 				Jump ();
@@ -405,7 +406,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		if ( Input.GetButtonUp("Jump") )
 		{
 			_jumpButtonPressed=false;
-			_jumpButtonReleased=true;
+			//_jumpButtonReleased=true;
 		}
 
 		if(Input.GetButtonDown("Fire1"))
