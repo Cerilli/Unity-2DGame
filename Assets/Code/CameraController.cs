@@ -26,6 +26,7 @@ public class CameraController : MonoBehaviour
 	private Vector2 _followReset;
 	private float _orthographicSizeReset;
 	private CharacterController2D characterController;
+
 	private float _sprintTimer;
 
 	private Vector3
@@ -59,7 +60,7 @@ public class CameraController : MonoBehaviour
 	{
 		var x = transform.position.x;
 		var y = transform.position.y;
-		if(!characterController.isSprinting) _sprintTimer = 0;
+		if(!characterController.State.IsSprinting) _sprintTimer = 0;
 
 		if(IsFollowing)		
 		{
@@ -71,7 +72,7 @@ public class CameraController : MonoBehaviour
 				Smoothing.y = _ySmoothReset;
 
 			// If the player isn't moving, lerp the camera follow back to its original position
-			if(!characterController.isSprinting || (Mathf.Abs(characterController.Velocity.x)  < 5 ))
+			if(!characterController.State.IsSprinting || (Mathf.Abs(characterController.Velocity.x)  < 5 ))
 
 			{
 				CameraFollow.localPosition = new Vector2(Mathf.Lerp(CameraFollow.localPosition.x, _followReset.x, Time.deltaTime), _followReset.y);
@@ -91,7 +92,7 @@ public class CameraController : MonoBehaviour
 				if(Mathf.Abs(x- CameraFollow.position.x) > Margin.x)
 				{
 					// Push the camera follow node out ahead of the player if he is sprinting
-					if(characterController.isSprinting && (characterController.Velocity.x > 5 || characterController.Velocity.x < -5))
+					if(characterController.State.IsSprinting && (characterController.Velocity.x > 5 || characterController.Velocity.x < -5))
 					{				
 						_sprintTimer += Time.deltaTime;
 						Margin.x = 0;

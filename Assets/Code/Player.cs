@@ -8,9 +8,8 @@ public class Player : MonoBehaviour, ITakeDamage
 	private CharacterController2D _controller; 								// Keeps track of our CharController2D component
 	private float _normalizedHorizontalSpeed;  								// Will either be -1 or 1, depending on whether the player is moving left or right
 
-	public float MaxSpeed 								= 10; 	            // Max speed of the player
-	public float SpeedAccelerationOnGround 				= 10f; 				// How quickly the player goes from still to moving
-	public float SpeedAccelerationInAir					= 5f;
+	[HideInInspector]
+	public float MovementSpeed							= 10; 	            // Max speed of the player
 	public int MaxHealth 								= 100;
 	public GameObject OuchEffect;
 
@@ -41,6 +40,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller = GetComponent<CharacterController2D> ();
 		isFacingRight = transform.localScale.x > 0; // if we are flipped, the localscale.x will be less than one, so we'll know we aren't facing right
 		Health = MaxHealth; 
+		MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
 		Application.targetFrameRate = 60;
 	}
 
@@ -52,37 +52,97 @@ public class Player : MonoBehaviour, ITakeDamage
 		if(!doHandleInput)
 			ResetInput();
 
-		if(!IsDead && doHandleInput)
-			HandleInput (); // changes normalized horizontal speed to 1, -1, or 0 depending on input. Also handles jumping.
-
-
-		// Get the desired acceleration
-		var movementFactor = _controller.State.IsGrounded ? SpeedAccelerationOnGround : SpeedAccelerationInAir;
-
 		// Don't move if we're dead
-		if(IsDead)
+
+
+		if(!IsDead && doHandleInput)
+		{
+			HandleInput (); 
+			HorizontalMovement();
+			VerticalMovement();
+		}	
+		else
 			_controller.SetHorizontalForce(0);
 
-		// Every frame will set the x component of the player's velocity to a linear interp between the max speed and current velocity, using the movement factor (multiplied by deltatime) 
-		// as the value to interp between
-		else
+	}
+
+	public void HorizontalMovement()
+	{
+		if(!_controller.State.CanMoveFreely)
+			return;
+		
+		// Get the desired acceleration
+		var movementFactor = 
+			_controller.State.IsGrounded ? _controller.Parameters.generalMovement.AccelerationOnGround :
+				_controller.Parameters.generalMovement.AccelerationInAir;
+
+		// Every frame will set the x component of the player's velocity to a linear interp between the max speed and current velocity, 
+		// using the movement factor (multiplied by deltatime) as the value to interp between		
+		_controller.SetHorizontalForce(Mathf.Lerp
+		                               (_controller.Velocity.x, _normalizedHorizontalSpeed * MovementSpeed, Time.deltaTime * movementFactor));
+	}
+
+	public void VerticalMovement()
+	{
+		if(!_controller.State.CanMoveFreely)
+			return;
+
+		int yDir = YInputDir();
+
+		//Check for crouching
+		if(yDir == -1 && _controller.State.IsGrounded)
 		{
-			if (!_controller.isSprinting)
-				_controller.SetHorizontalForce(Mathf.Lerp
-				                               (_controller.Velocity.x, _normalizedHorizontalSpeed * MaxSpeed, Time.deltaTime * movementFactor));
+			Crouch ();
+			_controller.State.IsCrouching = true;
+			MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;
+		}
 
-			if (_controller.isSprinting)
-			{
-				var sprintMax = MaxSpeed * _controller.sprintSpeedModifier;
-				_controller.SetHorizontalForce  (Mathf.Clamp(
-													 Mathf.Lerp(
-					 								  _controller.Velocity.x, _normalizedHorizontalSpeed * sprintMax, Time.deltaTime * movementFactor), 
-													  sprintMax * -1, sprintMax));
-			}
+		if ( (yDir != -1 || (_controller.State.WallSlideLeft || _controller.State.WallSlideRight) ) 
+		    && _controller.State.AbleToStand && _controller.State.IsCrouching )
+		{
+			_controller.ResetColliderSize();
+			_controller.RecalculateDistanceBetweenRays();
+			_controller.ResetPlayerMeshSize();
+			_controller.State.IsCrouching = false;
 
-		}		
+			if (!_controller.State.IsSprinting)					
+				MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
+		}
 
 	}
+
+	public void SprintStart()
+	{
+		if (!_controller.Parameters.generalMovement.canSprint)
+						return;
+
+		if(_controller.State.IsGrounded && !_controller.State.IsCrouching && (!_controller.State.WallSlideLeft || !_controller.State.WallSlideRight) )
+		{
+			MovementSpeed = _controller.Parameters.generalMovement.SprintSpeed;
+			_controller.State.IsSprinting = true;				
+		}
+	}
+
+	public void SprintStop()
+	{
+		MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
+		_controller.State.IsSprinting = false;
+	}
+
+	public void Crouch()
+	{
+		if(_controller.Parameters.crouchProperties.CanCrouch)
+			_controller.CrouchResize();
+
+	}
+
+	public void Jump()
+	{
+
+
+	}
+		
+
 
 	public void FinishLevel()
 	{
@@ -119,8 +179,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		IsDead = false;
 		collider2D.enabled = true;
 		_controller.HandleCollisions = true;
-		_controller.isSprinting = false;
-		_controller.sprintButton = false;
+		_controller.State.IsSprinting = false;
 		_controller.ResetParameters();
 
 		cameraController.ResetCamera();
@@ -192,9 +251,9 @@ public class Player : MonoBehaviour, ITakeDamage
 			if(_controller.CanJump)
 			{
 				// Force player to flip when jumping off a wall
-				if(_controller.wallSlideLeft && !isFacingRight)
+				if(_controller.State.WallSlideLeft && !isFacingRight)
 					Flip ();
-				if(_controller.wallSlideRight && isFacingRight)
+				if(_controller.State.WallSlideRight && isFacingRight)
 					Flip();
 
 				_controller.Jump ();
@@ -212,10 +271,10 @@ public class Player : MonoBehaviour, ITakeDamage
 		}
 
 		if (Input.GetButtonDown("Sprint"))		
-			_controller.sprintButton = true;
+			SprintStart();
 
 		if (Input.GetButtonUp("Sprint"))		
-			_controller.sprintButton = false;
+			SprintStop();
 
 		if (Input.GetKeyDown(KeyCode.Joystick1Button8) && Input.GetKeyDown(KeyCode.Joystick1Button9))
 			Invincible = !Invincible;
@@ -272,10 +331,24 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		_normalizedHorizontalSpeed = 0;
 		_controller.jumpButton = false;
-		_controller.sprintButton = false;
+	}
 
+
+	public int YInputDir()
+	{
+		// Check to see which vertical input is being pressed, if any
+		
+		if (Input.GetAxisRaw ("Vertical") <= -0.5 || Input.GetKey (KeyCode.S) || Input.GetKey (KeyCode.DownArrow))
+			return -1;
+		
+		if (Input.GetAxisRaw ("Vertical") >= 0.5 || Input.GetKey (KeyCode.A) || Input.GetKey (KeyCode.UpArrow))
+			return 1;
+		
+		return 0;
 	}
 }
+
+
 
 
 

@@ -23,14 +23,18 @@ public class ControllerParameters2D
 	[Serializable]
 	public class GeneralMovement
 	{
+		[HideInInspector]
 		public Vector2 MaxVelocity = new Vector2(float.MaxValue, float.MaxValue);
 		public float   TerminalVelocity = 		-60f;
 		public float Gravity = 				  	 60f;		// Every second, this many units are going to be applied to the Y direction
+		public float AccelerationOnGround = 10f; 				// How quickly the player goes from still to moving
+		public float AccelerationInAir		= 5f;
 		 
 		[Range(0, 99)]
 		public float SlopeLimit = 				 30f;		// The angle that we're allowed to climb. It will be set to 30, but will show up in the inspector as a slider with the range 0-99
+		public float WalkSpeed =                14f;
 		public bool canSprint = 				true;
-		public float sprintModifier =    		1.2f;
+		public float SprintSpeed =	    		20f;
 		public float edgeDetectDistance =       3.0f;
 	}
 

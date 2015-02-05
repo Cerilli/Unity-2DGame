@@ -12,10 +12,9 @@ public class CharacterController2D : MonoBehaviour
 
 	private static readonly float SlopeLimitTangent = Mathf.Tan(75f * Mathf.Deg2Rad); // will be used when moving up and down slopes is implemented
 
-	public LayerMask PlatformMask; 	// A layer mask that will be used for collision detection. 
-
+	public LayerMask PlatformMask= 0; 	// A layer mask that will be used for collision detection. 
 	[SerializeField]
-	private LayerMask oneWayPlatformMask = 10;
+	private LayerMask oneWayPlatformMask = 0;
 
 	public ControllerParameters2D DefaultParameters; // allows us to edit the default parameters in the inspector
 
@@ -24,7 +23,6 @@ public class CharacterController2D : MonoBehaviour
 	public Vector3 PlatformVelocity { get; private set; }
 
 	public bool wasGroundedLastFrame {get; set;}
-
 	public bool CanJump 
 	
 	{ 
@@ -47,8 +45,6 @@ public class CharacterController2D : MonoBehaviour
 		} 
 	
 	}
-
-
 	public bool HandleCollisions { get; set; }
 	public ControllerParameters2D Parameters { get { return _overrideParameters ?? DefaultParameters; } }	
 	// ?? is the null coalescing operator - same as saying 'if _overrideParmeters != null, return it, else return DefaultParameters'
@@ -68,14 +64,9 @@ public class CharacterController2D : MonoBehaviour
 
 	// =====================================
 
-	public bool isSprinting {get; set;}
-	public bool sprintButton {get; set;}
-	public float sprintSpeedModifier {get; set;}
-
 	public bool jumpButton {get; set;}
 	private float _jumpIn;
 	public bool doubleJump {get; set;}
-	public bool isJumping {get; set;}
 	private float _jumpHeightTimerReset;
 
 	private GameObject _lastStandingOn;
@@ -88,22 +79,14 @@ public class CharacterController2D : MonoBehaviour
 	public float wallDropTimer = 5.0f;
 	private float wallDropTimerReset;
 
-	public bool isWallSliding { get { return (wallSlideLeft || wallSlideRight); } }
-	[HideInInspector]
-	public bool wallSlideLeft  = false;
-	[HideInInspector]
-	public bool wallSlideRight = false;
-	private bool hasWallJumped = false;
+	public bool isWallSliding { get { return (State.WallSlideLeft || State.WallSlideRight); } }
 
 	// =======================================	
 
 
 	// Crouching =============================
 
-	//private bool isCrouching = false;
-	//private bool isSliding = false;
-	private bool canStand = true;
-	private bool DropThrough = false;
+	public bool canStand = true;
 
 	// =======================================
 
@@ -144,10 +127,7 @@ public class CharacterController2D : MonoBehaviour
 		wallDropTimerReset = wallDropTimer;
 		RecalculateDistanceBetweenRays ();
 
-		sprintSpeedModifier = Parameters.generalMovement.sprintModifier;
-
 		_jumpHeightTimerReset = Parameters.jumpProperties.JumpHeightTimer;
-
 	}
 
 	#region Set Forces
@@ -182,22 +162,13 @@ public class CharacterController2D : MonoBehaviour
 		if(State.IsGrounded)
 			Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
 
-		// Drop down through one way platform if we are standing on one and press crouch + jump
-		if( StandingOn != null && StandingOn.tag == "OneWayPlatform" && State.IsCrouching)
-		{
-			DropThrough = true;
-			return;
-		}
-
 		var JumpHeight = Parameters.jumpProperties.JumpMagnitude; 
-		//TODO: Moving platform support
-		//_velocity.y += Mathf.Max(_velocity.y + JumpHeight, (2f * Time.deltaTime));
 
 		if (wallJump)
 		{
-			hasWallJumped = true;
+			State.HasWallJumped = true;
 			// Jump off the wall depending on which side the wall is on, using WallJumpOut to affect x velocity off wall
-			_velocity = new Vector2 (wallSlideLeft ? 
+			_velocity = new Vector2 (State.WallSlideLeft ? 
 			                         JumpHeight * Parameters.jumpProperties.WallJumpOut : (JumpHeight * Parameters.jumpProperties.WallJumpOut) * -1, JumpHeight);
 
 			if(Parameters.jumpProperties.canDoubleJumpOffWall)
@@ -213,7 +184,7 @@ public class CharacterController2D : MonoBehaviour
 			{
 				_velocity.y = JumpHeight;
 				Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-				isJumping = true;
+				State.IsJumping = true;
 			}
 			return;
 		}
@@ -240,7 +211,7 @@ public class CharacterController2D : MonoBehaviour
 		{
 			_velocity.y = JumpHeight;
 			Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-			if (!isJumping) isJumping = true;
+			if (!State.IsJumping) State.IsJumping = true;
 		}
 
 
@@ -248,11 +219,7 @@ public class CharacterController2D : MonoBehaviour
 
 		if(!Parameters.jumpProperties.canVariableHeightJump)
 			_velocity.y = JumpHeight;
-
-
-		// **ORIGINAL TECHNIQUE***
-		//AddForce(new Vector2 (0, JumpHeight));
-		// ****
+	
 
 		// "_jumpIn" is used to determine if a player can jump or not
 		_jumpIn = Parameters.jumpProperties.JumpFrequency;
@@ -260,25 +227,10 @@ public class CharacterController2D : MonoBehaviour
 
 	}
 
-	public void Dash()
+
+	public void CrouchResize()
 	{
-		//var isGoingRight = _velocity.x > 0;
-
-		_velocity.y = 0f;
-
-		if (_velocity.x > 0)
-						_velocity.x = _velocity.x + 60f;
-
-		if (_velocity.x < 0)
-						_velocity.x = _velocity.x -60f;
-
-	}
-
-	public void Crouch()
-	{
-		if (!State.IsCrouching)
-		{
-
+			
 			// The value for _boxcollider.center must be manually tweaked for now so that it doesn't cause the player to slightly rise when it's reset upon exiting crouch.
 			// If the player does rise slightly, it cause them to fall through a one way platform
 			_boxCollider.center = new Vector2(_boxCollider.center.x, -1.05f);
@@ -289,9 +241,6 @@ public class CharacterController2D : MonoBehaviour
 			GameObject player = GameObject.Find("Capsule");
 			player.transform.localScale = new Vector3(3.25f, 1.85f, 1.4f);
 			player.transform.localPosition = new Vector3(player.transform.localPosition.x, -0.9f, player.transform.localPosition.z);
-
-			State.IsCrouching = true;
-		}
 
 	}
 
@@ -311,9 +260,9 @@ public class CharacterController2D : MonoBehaviour
 
 		_jumpIn -= Time.deltaTime;
 
-		if(isJumping && (!wasGroundedLastFrame && State.IsGrounded) || isWallSliding ) 
-			isJumping = false;
-		if (Parameters.jumpProperties.canVariableHeightJump  && (jumpButton && isJumping) && !doubleJump) 
+		if(State.IsJumping && (!wasGroundedLastFrame && State.IsGrounded) || isWallSliding ) 
+			State.IsJumping = false;
+		if (Parameters.jumpProperties.canVariableHeightJump  && (jumpButton && State.IsJumping) && !doubleJump) 
 			Jump ();
 
 		if(!jumpButton) 
@@ -323,17 +272,16 @@ public class CharacterController2D : MonoBehaviour
 		// ===================================
 
 		int xDir = XInputDir();
-		int yDir = YInputDir();
 
 		// Wall Jumping =================
 		#region Wall Jumping
 
 		// If we're pushing against the wall, keep the wallDropTimer at its default
-		if ( ( xDir == -1 && wallSlideLeft) || (xDir == 1 && wallSlideRight) )
+		if ( ( xDir == -1 && State.WallSlideLeft) || (xDir == 1 && State.WallSlideRight) )
 			wallDropTimer = wallDropTimerReset;
 
 		// If we're not pushing against the wall, start counting down until we drop off the wall
-		else if ((xDir != -1 && wallSlideLeft) || (xDir != 1 && wallSlideRight))
+		else if ((xDir != -1 && State.WallSlideLeft) || (xDir != 1 && State.WallSlideRight))
 						wallDropTimer -= Time.deltaTime;
 
 		// Turn wall jump off if we slide down a wall to the ground, or are no longer colliding with a wall
@@ -344,42 +292,9 @@ public class CharacterController2D : MonoBehaviour
 		if ( isWallSliding && wallDropTimer > 0)
 			_velocity.x = 0;
 
-		// Reset hasWallJumped after landing from a wall jump
-		if(State.IsGrounded && hasWallJumped)
-			hasWallJumped = false;
-		#endregion
-		// ==============================
-
-		// Crouching ====================
-		#region Crouching
-		if (State.IsGrounded && yDir == -1 && Parameters.crouchProperties.CanCrouch)
-			if (GetComponent<Player>())
-				Crouch();
-
-		if ( (yDir != -1 || isWallSliding ) && canStand && State.IsCrouching )
-		{
-			ResetColliderSize();
-			RecalculateDistanceBetweenRays();
-			ResetPlayerMeshSize();
-			State.IsCrouching = false;
-		}
-
-		if (State.IsCrouching)					
-			_velocity.x *= Parameters.crouchProperties.CrouchMoveSpeed;
-		#endregion
-		// ==============================
-
-		// Sprinting ====================
-		#region Sprinting
-
-		// if the sprint button is being held, and we are allowed to sprint, set isSprinting to true
-		if(sprintButton && Parameters.generalMovement.canSprint && !isWallSliding && !State.IsCrouching && !isSprinting)
-			isSprinting = true;
-
-		// don't sprint after a wall jump, and if the sprint button isn't down
-		if(isSprinting && !sprintButton || hasWallJumped )
-			isSprinting = false;
-
+		// Reset State.HasWallJumped after landing from a wall jump
+		if(State.IsGrounded && State.HasWallJumped)
+			State.HasWallJumped = false;
 		#endregion
 		// ==============================
 
@@ -394,9 +309,7 @@ public class CharacterController2D : MonoBehaviour
 
 		if (State.IsGrounded)
 			doubleJump = false;
-
-		if (DropThrough)
-			DropThrough = false;
+	
 
 	}
 
@@ -429,7 +342,7 @@ public class CharacterController2D : MonoBehaviour
 			if (detectEdges)EdgeDetect(ref deltaMovement);
 
 			if(State.IsCrouching)
-				canStand = CanStand (deltaMovement.x);
+				CanStand (deltaMovement.x);
 
 			// Call our platform fix method AFTER vertical movement is dealt with
 			CorrectHorizontalPlacement(ref deltaMovement, true);
@@ -484,12 +397,12 @@ public class CharacterController2D : MonoBehaviour
 			wallJump = true;
 			if (State.IsCollidingLeft)
 			{	
-				wallSlideLeft = true;
+				State.WallSlideLeft = true;
 				doubleJump = false;
 			}
 			if (State.IsCollidingRight)
 			{
-				wallSlideRight = true;
+				State.WallSlideRight = true;
 				doubleJump = false;
 			}
 		}
@@ -623,8 +536,8 @@ public class CharacterController2D : MonoBehaviour
 		if (isWallSliding)
 		{
 			rayDistance = 0.2f;
-			rayDirection = wallSlideRight ? Vector2.right : -Vector2.right;
-			rayOrigin = wallSlideRight ? _raycastBottomRight : _raycastBottomLeft;
+			rayDirection = State.WallSlideRight ? Vector2.right : -Vector2.right;
+			rayOrigin = State.WallSlideRight ? _raycastBottomRight : _raycastBottomLeft;
 
 			var rayVector = new Vector2(rayOrigin.x, rayOrigin.y);
 			Debug.DrawRay (rayVector, rayDirection *rayDistance, Color.magenta);
@@ -727,9 +640,9 @@ public class CharacterController2D : MonoBehaviour
 
 		var standingOnDistance = float.MaxValue;
 
-		// Ignore the oneWayPlatformMask if we're moving upwards, or if we are crouched and press jump
+		// Ignore the oneWayPlatformMask if we're moving upwards
 		var mask = PlatformMask;
-		if (isGoingUp && StandingOn == null || (State.IsCrouching && DropThrough)) 
+		if (isGoingUp && StandingOn == null ) 
 		{
 			mask &= ~oneWayPlatformMask;
 		}
@@ -925,6 +838,7 @@ public class CharacterController2D : MonoBehaviour
 		}
 		
 		// If we got this far, that means we can stand!
+		State.AbleToStand = true;
 		return true;
 	}
 
@@ -1030,8 +944,8 @@ public class CharacterController2D : MonoBehaviour
 		// Set all wall jump variables to their default state
 
 		wallJump = false;
-		wallSlideLeft = false;
-		wallSlideRight = false;
+		State.WallSlideLeft = false;
+		State.WallSlideRight = false;
 		wallDropTimer = wallDropTimerReset;
 		
 	}

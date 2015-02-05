@@ -14,9 +14,17 @@ public class ControllerState2D {
 	public bool IsBouncingOnJumpPad { get; set; }
 	public bool IsSprinting {get; set;}
 	public bool IsCrouching {get; set;}
+	public bool IsJumping { get; set;}
 	public bool IsSlidingDownHill {get; set;}
 	public bool IsGrounded { get {return IsCollidingBelow;} }
 
+	public bool WallSlideRight{ get; set; }
+	public bool WallSlideLeft { get; set; }
+	public bool HasWallJumped { get; set; }
+
+
+	public bool CanMoveFreely {get; set; }
+	public bool AbleToStand {get; set;}
 	public bool EdgeDetectedRight {get; set;}
 	public bool EdgeDetectedLeft {get; set;}
 
@@ -33,7 +41,12 @@ public class ControllerState2D {
 			IsCollidingAbove =
 			IsCollidingBelow = 
 			IsSprinting =
-			IsBouncingOnJumpPad = false;
+			IsBouncingOnJumpPad = 
+			HasWallJumped =       false;
+
+		AbleToStand = 
+			CanMoveFreely = true;
+
 			
 
 		SlopeAngle = 0; 

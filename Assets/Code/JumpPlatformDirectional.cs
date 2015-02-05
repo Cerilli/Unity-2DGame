@@ -39,7 +39,7 @@ public class JumpPlatformDirectional : MonoBehaviour
 	public IEnumerator DisableController(CharacterController2D playerController)
 	{
 		var player = playerController.GetComponent<Player>();
-		playerController.sprintButton = false;	
+//		playerController.sprintButton = false;	
 		player.ResetInput();
 		player.doHandleInput = false;
 		yield return new WaitForSeconds(disableControllerTimer);
