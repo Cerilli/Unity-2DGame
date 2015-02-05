@@ -10,15 +10,19 @@ public class JumpPlatform : MonoBehaviour
 
 	public void ControllerEnter2D(CharacterController2D controller)
 	{
+
 		if ( HitJumpPadSound != null)
 			AudioSource.PlayClipAtPoint(HitJumpPadSound, transform.position);
 
-		if (controller.jumpButton)
+		var player = controller.GetComponent<Player>();
+		if (player != null)
 		{
-			controller.SetVerticalForce(BigJumpMagnitude);
-			controller.ResetLastGround();
-			controller.State.IsBouncingOnJumpPad = false;
-			return;
+			if (player.JumpButton())
+			{
+				controller.SetVerticalForce(BigJumpMagnitude);
+				controller.State.IsBouncingOnJumpPad = false;
+				return;
+			}
 		}
 
 		controller.State.IsBouncingOnJumpPad = true;

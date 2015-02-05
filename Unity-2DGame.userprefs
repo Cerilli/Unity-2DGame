@@ -1,16 +1,20 @@
 ﻿<Properties>
-  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Code\SimpleEnemyAI.cs">
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Code\ControllerState2D.cs">
     <Files>
-      <File FileName="Assets\Code\SimpleEnemyAI.cs" Line="103" Column="1" />
-      <File FileName="Assets\Code\CharacterController2D.cs" Line="306" Column="3" />
+      <File FileName="Assets\Code\CharacterController2D.cs" Line="38" Column="58" />
+      <File FileName="Assets\Code\ControllerState2D.cs" Line="18" Column="43" />
+      <File FileName="Assets\Code\Player.cs" Line="53" Column="40" />
+      <File FileName="..\NewProject2\Assets\CorgiEngine\scripts\character\Player.cs" Line="345" Column="31" />
+      <File FileName="..\NewProject2\Assets\CorgiEngine\scripts\character\CorgiController2D.cs" Line="165" Column="79" />
+      <File FileName="Assets\Code\ControllerParameters2D.cs" Line="1" Column="1" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State expanded="True">
           <Node name="Assembly-CSharp" expanded="True">
             <Node name="Code" expanded="True">
-              <Node name="SimpleEnemyAI.cs" selected="True" />
+              <Node name="ControllerState2D.cs" selected="True" />
             </Node>
           </Node>
         </State>
@@ -20,7 +24,10 @@
       </Pad>
       <Pad Id="MonoDevelop.Debugger.WatchPad">
         <State>
-          <Value>this._startPosition</Value>
+          <Value>this._controller.doubleJump</Value>
+          <Value>this._controller.State.IsGrounded</Value>
+          <Value>this._controller.Parameters.jumpProperties.JumpHeightTimer</Value>
+          <Value>this._controller._jumpHeightTimerReset</Value>
         </State>
       </Pad>
     </Pads>

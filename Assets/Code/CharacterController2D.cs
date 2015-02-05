@@ -3,131 +3,76 @@ using System.Collections;
 
 public class CharacterController2D : MonoBehaviour 
 {
-
 	#region Variables
-
-	private const float SkinWidth = .02f;
-	private const int TotalHorizontalRays = 8; //specify how many rays will be used to detect collision
-	private const int TotalVerticalRays = 4;
-
-	private static readonly float SlopeLimitTangent = Mathf.Tan(75f * Mathf.Deg2Rad); // will be used when moving up and down slopes is implemented
-
-	public LayerMask PlatformMask= 0; 	// A layer mask that will be used for collision detection. 
-	[SerializeField]
-	private LayerMask oneWayPlatformMask = 0;
-
 	public ControllerParameters2D DefaultParameters; // allows us to edit the default parameters in the inspector
-
 	public ControllerState2D State { get; private set; }
 	public Vector2 Velocity { get { return _velocity; } }
 	public Vector3 PlatformVelocity { get; private set; }
-
 	public bool wasGroundedLastFrame {get; set;}
-	public bool CanJump 
-	
-	{ 
-		get 
-		{ 
-			// we can Jump IF we have the jump restriction of CanJumpAnywhere
+	public bool CanJump 	
+	{	get 
+		{	
 			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpAnywhere)
 				return _jumpIn <= 0;
-
-
-			// or if our jump restriction is CanJumpOnGround
 			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpOnGround)
-				if(( State.IsGrounded || _groundDetected) || (!doubleJump && Parameters.jumpProperties.canDoubleJump) || wallJump )
+				if(( State.IsGrounded || _groundDetected) || State.WallSliding )
 					return true;
 				else 
 					return false;
-
-			// otherwise, we can't jump
 			return false;
-		} 
-	
+		} 	
 	}
 	public bool HandleCollisions { get; set; }
 	public ControllerParameters2D Parameters { get { return _overrideParameters ?? DefaultParameters; } }	
 	// ?? is the null coalescing operator - same as saying 'if _overrideParmeters != null, return it, else return DefaultParameters'
 	// when you access the parameters through this property, it will return either the DefaultParameters, or the _overrideParameters
 	public GameObject StandingOn { get; private set; }
+	
+	public LayerMask PlatformMask= 0; 	
+	[SerializeField]
+	private LayerMask oneWayPlatformMask = 0;
 
-	private Vector2 _velocity;
-	private ControllerParameters2D _overrideParameters; // allows us to override the parameters of ControllerParameters2D by setting this to whatever we want
 	private Transform _transform;
 	private Vector3 _localScale;
+	private Vector2 _velocity;
+	private ControllerParameters2D _overrideParameters; // allows us to override the parameters of ControllerParameters2D by setting this to whatever we want
 
-	// Player Collider =====================
-
+	// Character Collider ==================
 	private BoxCollider2D _boxCollider;
 	private Vector2 boxColliderOriginalSize;
 	private Vector2 boxColliderOriginalCenter;
-
+	private const float SkinWidth = .02f;
+	private const int TotalHorizontalRays = 8; //specify how many rays will be used to detect collision
+	private const int TotalVerticalRays = 4;
 	// =====================================
-
-	public bool jumpButton {get; set;}
+	private static readonly float SlopeLimitTangent = Mathf.Tan(75f * Mathf.Deg2Rad); // will be used when moving up and down slopes is implemented
 	private float _jumpIn;
-	public bool doubleJump {get; set;}
-	private float _jumpHeightTimerReset;
-
 	private GameObject _lastStandingOn;
-	private GameObject _lastGroundObject;
-
-	// Wall Jumping =========================
-
-	[HideInInspector]
-	public bool wallJump = false;
-	public float wallDropTimer = 5.0f;
-	private float wallDropTimerReset;
-
-	public bool isWallSliding { get { return (State.WallSlideLeft || State.WallSlideRight); } }
-
-	// =======================================	
-
-
-	// Crouching =============================
-
-	public bool canStand = true;
-
-	// =======================================
-
-
 	private Vector3
 		_activeGlobalPlatformPoint,
 		_activeLocalPlatformPoint;
-
 	private Vector3
 		_raycastTopLeft,
 		_raycastBottomRight,
 		_raycastBottomLeft;
-
 	private float
 				_verticalDistanceBetweenRays,
 				_horizontalDistanceBetweenRays;
-
-	public bool detectEdges = true;
 	private bool _groundDetected;
 
 	#endregion
 
-
 	public void Awake()
 	{
-		// add our one-way platforms to our normal platform mask so that we can land on them from above
-		PlatformMask |= oneWayPlatformMask;
-
+		PlatformMask |= oneWayPlatformMask; // add our one-way platforms to our normal platform mask so that we can land on them from above
 		HandleCollisions = true;
 		State = new ControllerState2D ();
 		_transform = transform;
 		_localScale = transform.localScale;
 		_boxCollider = GetComponent<BoxCollider2D> ();
-
 		boxColliderOriginalSize = _boxCollider.size;
 		boxColliderOriginalCenter = _boxCollider.center;
-
-		wallDropTimerReset = wallDropTimer;
 		RecalculateDistanceBetweenRays ();
-
-		_jumpHeightTimerReset = Parameters.jumpProperties.JumpHeightTimer;
 	}
 
 	#region Set Forces
@@ -152,177 +97,21 @@ public class CharacterController2D : MonoBehaviour
 	}
 	#endregion
 
-	//========================================================================================================================//
-	//============== ACTION FUNCTIONS=========================================================================================//
-	//========================================================================================================================//
-
-	#region ACTION FUNCTIONS
-	public void Jump()
-	{
-		if(State.IsGrounded)
-			Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
-
-		var JumpHeight = Parameters.jumpProperties.JumpMagnitude; 
-
-		if (wallJump)
-		{
-			State.HasWallJumped = true;
-			// Jump off the wall depending on which side the wall is on, using WallJumpOut to affect x velocity off wall
-			_velocity = new Vector2 (State.WallSlideLeft ? 
-			                         JumpHeight * Parameters.jumpProperties.WallJumpOut : (JumpHeight * Parameters.jumpProperties.WallJumpOut) * -1, JumpHeight);
-
-			if(Parameters.jumpProperties.canDoubleJumpOffWall)
-				doubleJump = false;
-			else 
-				doubleJump = true;
-			
-
-
-			// Force wallJump off if we have jumped
-			ResetWallJump();
-			if(jumpButton && Parameters.jumpProperties.JumpHeightTimer >= 0)
-			{
-				_velocity.y = JumpHeight;
-				Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-				State.IsJumping = true;
-			}
-			return;
-		}
-
-		if(!doubleJump && !State.IsGrounded && Parameters.jumpProperties.JumpHeightTimer == _jumpHeightTimerReset)	
-		{
-			doubleJump = true;
-			Parameters.jumpProperties.JumpHeightTimer = Parameters.jumpProperties.doubleJumpTimer;
-		}
-
-		if (State.IsCrouching)
-		{				
-			JumpHeight = JumpHeight * Parameters.crouchProperties.CrouchJumpModifier;
-			
-			if (!Parameters.jumpProperties.canDoubleJumpWhileCrouched && !State.IsGrounded && Parameters.jumpProperties.JumpHeightTimer == _jumpHeightTimerReset)
-				doubleJump = true;
-		}
-
-		if (doubleJump) 
-			JumpHeight = Parameters.jumpProperties.doubleJumpMagnitude;
-
-		// Jump
-		if(jumpButton && Parameters.jumpProperties.JumpHeightTimer >= 0 )
-		{
-			_velocity.y = JumpHeight;
-			Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-			if (!State.IsJumping) State.IsJumping = true;
-		}
-
-
-
-
-		if(!Parameters.jumpProperties.canVariableHeightJump)
-			_velocity.y = JumpHeight;
-	
-
-		// "_jumpIn" is used to determine if a player can jump or not
-		_jumpIn = Parameters.jumpProperties.JumpFrequency;
-
-
-	}
-
-
-	public void CrouchResize()
-	{
-			
-			// The value for _boxcollider.center must be manually tweaked for now so that it doesn't cause the player to slightly rise when it's reset upon exiting crouch.
-			// If the player does rise slightly, it cause them to fall through a one way platform
-			_boxCollider.center = new Vector2(_boxCollider.center.x, -1.05f);
-			_boxCollider.size = new Vector2(_boxCollider.size.x, 3.35f);
-
-			RecalculateDistanceBetweenRays ();
-
-			GameObject player = GameObject.Find("Capsule");
-			player.transform.localScale = new Vector3(3.25f, 1.85f, 1.4f);
-			player.transform.localPosition = new Vector3(player.transform.localPosition.x, -0.9f, player.transform.localPosition.z);
-
-	}
-
-	#endregion
-
-	//========================================================================================================================//
-	//========================================================================================================================//
-
 	public void LateUpdate()
 	{
-	
-		// Jumping checks / variable height ==
-		#region Jumping Checks
-
-		if(State.IsBouncingOnJumpPad)
-			doubleJump = true;
-
 		_jumpIn -= Time.deltaTime;
-
-		if(State.IsJumping && (!wasGroundedLastFrame && State.IsGrounded) || isWallSliding ) 
-			State.IsJumping = false;
-		if (Parameters.jumpProperties.canVariableHeightJump  && (jumpButton && State.IsJumping) && !doubleJump) 
-			Jump ();
-
-		if(!jumpButton) 
-			Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
-
-		#endregion
-		// ===================================
-
-		int xDir = XInputDir();
-
-		// Wall Jumping =================
-		#region Wall Jumping
-
-		// If we're pushing against the wall, keep the wallDropTimer at its default
-		if ( ( xDir == -1 && State.WallSlideLeft) || (xDir == 1 && State.WallSlideRight) )
-			wallDropTimer = wallDropTimerReset;
-
-		// If we're not pushing against the wall, start counting down until we drop off the wall
-		else if ((xDir != -1 && State.WallSlideLeft) || (xDir != 1 && State.WallSlideRight))
-						wallDropTimer -= Time.deltaTime;
-
-		// Turn wall jump off if we slide down a wall to the ground, or are no longer colliding with a wall
-		if (State.IsGrounded && isWallSliding)
-						ResetWallJump ();
-	
-		// Stick to the wall if we are sliding and having been pushing against the wall 
-		if ( isWallSliding && wallDropTimer > 0)
-			_velocity.x = 0;
-
-		// Reset State.HasWallJumped after landing from a wall jump
-		if(State.IsGrounded && State.HasWallJumped)
-			State.HasWallJumped = false;
-		#endregion
-		// ==============================
-
-							
-		// will move character as per his velocity, scaled by time. e.g. 5 units to the right is a Velocity of 5x
-		// deltaTime is time passed since last frame, usually a very small number, less than one
 		Move (Velocity * Time.deltaTime);
-
-		// Implement gravity	
-		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;
-
-
-		if (State.IsGrounded)
-			doubleJump = false;
-	
-
+		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;  // Gravity	
 	}
 
 	private void Move(Vector2 deltaMovement)
 	{
-
 		wasGroundedLastFrame = State.IsCollidingBelow; // Keep track of if we were grounded
 		State.Reset (); // Reset state (set all bools to false and slope to zero)
 
-
 		if (HandleCollisions) 
 		{
-			HandlePlatforms();      // will handle moving platforms
+			HandleMovingPlatforms();      // will handle moving platforms
 			CalculateRayOrigins();  // calculates where our rays will originate from
 
 			if (deltaMovement.y < 0 && wasGroundedLastFrame ) // if moving down/being affected by gravity AND grounded, means we are potentially on a slope
@@ -332,14 +121,12 @@ public class CharacterController2D : MonoBehaviour
 
 			// If moving to the left or right, then MoveHorizontally and check for collisions
 			// Also want to call it when wall jumping, as our movement will be 0, but we'll want to know if we slide off a wall
-			if (Mathf.Abs(deltaMovement.x) > .001f || isWallSliding)		
+			if (Mathf.Abs(deltaMovement.x) > .001f || State.WallSliding)		
 				MoveHorizontally(ref deltaMovement);
 
 			MoveVertically(ref deltaMovement); // we will always be moving vertically, as gravity will always be acting upon us
 
-
-
-			if (detectEdges)EdgeDetect(ref deltaMovement);
+			if (Parameters.generalMovement.DetectEdges)EdgeDetect(ref deltaMovement);
 
 			if(State.IsCrouching)
 				CanStand (deltaMovement.x);
@@ -349,12 +136,9 @@ public class CharacterController2D : MonoBehaviour
 			CorrectHorizontalPlacement(ref deltaMovement, false);
 		}
 
-	
-
 		// if we get this far, and collisions have been handled, we know we will be making a valid movement, and transform.Translate will
 		// represent the delta of movement we can make in this step (explanation at 24:00 of 3DBuzz "Horizontal Movement" video)
 		_transform.Translate (deltaMovement, Space.World); // we are moving the character in the World space
-
 
 		// however much we successfully changed, we want to consider that our new velocity
 		if (Time.deltaTime > 0)
@@ -364,10 +148,7 @@ public class CharacterController2D : MonoBehaviour
 		_velocity.x = Mathf.Min (_velocity.x, Parameters.generalMovement.MaxVelocity.x);
 		_velocity.y = Mathf.Min (_velocity.y, Parameters.generalMovement.MaxVelocity.y);
 
-
-		// ======================================================
 		// ======== MOVE ADJUSTMENTS ============================
-		// ======================================================
 		#region MOVE ADJUSTMENTS
 
 		// Max fall speed
@@ -379,7 +160,7 @@ public class CharacterController2D : MonoBehaviour
 			_velocity.x = Parameters.generalMovement.MaxVelocity.x * -1;
 
 		// Have the player move slower on a wall
-		if ( isWallSliding && wallDropTimer > 0)
+		if ( State.WallSliding && Parameters.jumpProperties.wallDropTimer > 0)
 		{
 			// Ease out of vertical movement
 			if (_velocity.y > 0)
@@ -391,26 +172,9 @@ public class CharacterController2D : MonoBehaviour
 		if (State.IsMovingUpSlope)
 						_velocity.y = 0;
 
-	    // Set Wall Jump to true if we're not grounded, but colliding on either side
-		if (!State.IsGrounded && (State.IsCollidingLeft || State.IsCollidingRight) && Parameters.jumpProperties.canWallJump)
-		{
-			wallJump = true;
-			if (State.IsCollidingLeft)
-			{	
-				State.WallSlideLeft = true;
-				doubleJump = false;
-			}
-			if (State.IsCollidingRight)
-			{
-				State.WallSlideRight = true;
-				doubleJump = false;
-			}
-		}
-
-		// Platforms
+		// Moving platforms
 		if (StandingOn != null ) 
 		{
-
 			//Store where the platform is
 			_activeGlobalPlatformPoint = transform.position;
 			_activeLocalPlatformPoint = StandingOn.transform.InverseTransformPoint(transform.position);		
@@ -431,23 +195,13 @@ public class CharacterController2D : MonoBehaviour
 			_lastStandingOn.SendMessage("ControllerExit2D", this, SendMessageOptions.DontRequireReceiver);
 			_lastStandingOn = null;
 		}
-
-		// Store the last thing we touched while grounded (using this to deactive double jump while bouncing on Jump Pads, for example)
-		if(State.IsGrounded && StandingOn != null)		
-			_lastGroundObject = StandingOn;
-
-
-
-	#endregion
-	
-	
+	#endregion	
 	}
 
 	// ========== COLLISIONS =================================================================================================//
 	#region COLLISIONS
-	private void HandlePlatforms()
-	{
-	
+	private void HandleMovingPlatforms()
+	{	
 		if (StandingOn != null)
 		{
 			// If standing on a platform still (in the next frame), calculate where the platform is, get difference between old and new position 
@@ -466,7 +220,6 @@ public class CharacterController2D : MonoBehaviour
 			PlatformVelocity = Vector3.zero;
 
 		StandingOn = null;
-
 	}
 
 	private void CorrectHorizontalPlacement(ref Vector2 deltaMovement, bool isRight)
@@ -487,25 +240,20 @@ public class CharacterController2D : MonoBehaviour
 		for (var i = 1; i < TotalHorizontalRays; i++)
 		{
 			var rayVector = new Vector2(rayOrigin.x, deltaMovement.y + rayOrigin.y + (i * _verticalDistanceBetweenRays));
-			//Debug.DrawRay(rayVector, rayDirection *halfWidth,  isRight ?Color.cyan : Color.magenta);
-
 			var raycastHit = Physics2D.Raycast(rayVector, rayDirection, halfWidth, PlatformMask);
 			if(!raycastHit)
 				continue;
 
 			offset = isRight ? ((raycastHit.point.x - _transform.position.x) - halfWidth) : (halfWidth - (_transform.position.x -raycastHit.point.x));
 		}
-
 		// This is what will actually push the player to the left of right if they're hitting a moving platform
 		deltaMovement.x += offset;
-
 	}
 
 	private void CalculateRayOrigins()
 	{
 		// precomputes where the rays are going to be "shot out" from
-		// we need top left, bottom left, and bottom right.
-		
+		// we need top left, bottom left, and bottom right.		
 		// first we need to determine the size of the box collider, which is size of box collider PLUS scale of player
 		// also need center of box collider
 		// then need raycast top left (for example), which is Position of player + Center - size (of x) -skin width
@@ -520,10 +268,8 @@ public class CharacterController2D : MonoBehaviour
 
 	}
 
-	private void MoveHorizontally( ref Vector2 deltaMovement) 
-	
+	private void MoveHorizontally( ref Vector2 deltaMovement) 	
 	{
-
 		// This method will cast rays to right or left, the and constrain movement based on result of that raycast
 		// takes reference to deltaMovement because it needs to manipulate it. Needs to clamp deltaMovement based on existence of platform/obstacle
 		// in the way of the player
@@ -533,7 +279,7 @@ public class CharacterController2D : MonoBehaviour
 		var rayOrigin = isGoingRight ? _raycastBottomRight : _raycastBottomLeft; // Will set the ray origin to either bottom right or bottom left based on direction we are moving
 
 		// while wall sliding, only draw one ray at the feet to check for the end of a wall
-		if (isWallSliding)
+		if (State.WallSliding)
 		{
 			rayDistance = 0.2f;
 			rayDirection = State.WallSlideRight ? Vector2.right : -Vector2.right;
@@ -541,19 +287,14 @@ public class CharacterController2D : MonoBehaviour
 
 			var rayVector = new Vector2(rayOrigin.x, rayOrigin.y);
 			Debug.DrawRay (rayVector, rayDirection *rayDistance, Color.magenta);
-
 			var raycastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, PlatformMask);
 
 			if(!raycastHit)
-			{
-				ResetWallJump();
-			}   
+				ResetWallJump();   
 		}
-
 
 		else
 		{
-
 			RaycastHit2D _raycastHit;
 			// loop through all of the rays we want to cast. How many? Based on constant we declared
 			for (var i = 0; i < TotalHorizontalRays; i++) 
@@ -566,11 +307,8 @@ public class CharacterController2D : MonoBehaviour
 				//if (deltaMovement.y >=0.2f || deltaMovement.y <= -0.1f)
 				//	rayVector.y += deltaMovement.y;
 
-
 				// draw ray in our scene view. draws a ray from our rayVector and our rayDirection, scaled up by our distance
 				Debug.DrawRay(rayVector, rayDirection * rayDistance, Color.red); 
-				//Debug.Log("ASDF"); // use for debugging, this should show in the console
-
 
 				// if we are grounded we will include oneWayPlatforms only on the first ray (the bottom one). this will allow us to
 				// walk up sloped oneWayPlatforms
@@ -578,15 +316,6 @@ public class CharacterController2D : MonoBehaviour
 					_raycastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, PlatformMask);
 				else
 					_raycastHit = Physics2D.Raycast( rayVector, rayDirection, rayDistance, PlatformMask & ~oneWayPlatformMask );
-
-
-				/* Collisions without before OneWayPlatformMask implementation
-
-				// Using Physics2D (NOT just Physics -which operates in 3D space), determine if there is a collision 
-				// based on our PlatformMask layer
-				//var raycastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, PlatformMask);
-
-				 */
 					
 				// If no hit is detected, continue
 				if(!_raycastHit)
@@ -621,40 +350,30 @@ public class CharacterController2D : MonoBehaviour
 				// If this happens, something went wrong
 				if (rayDistance < SkinWidth + .001f)
 					break;
-
 			}
 		}
-
 	}
 
 	private void MoveVertically(ref Vector2 deltaMovement)
-
 	{
 		// Invoked every frame, because of gravity. Different from Horizontal movement
 		var isGoingUp = deltaMovement.y > 0;
 		var rayDistance = Mathf.Abs (deltaMovement.y) + SkinWidth;
 		var rayDirection = isGoingUp ? Vector2.up : -Vector2.up;
 		var rayOrigin = isGoingUp ? _raycastTopLeft : _raycastBottomLeft;
+		var standingOnDistance = float.MaxValue;
 
 		rayOrigin.x += deltaMovement.x;
-
-		var standingOnDistance = float.MaxValue;
 
 		// Ignore the oneWayPlatformMask if we're moving upwards
 		var mask = PlatformMask;
 		if (isGoingUp && StandingOn == null ) 
-		{
 			mask &= ~oneWayPlatformMask;
-		}
-	
-
-
 
 		for (var i = 0; i < TotalVerticalRays; i ++)
 		{
 			var rayVector = new Vector2(rayOrigin.x + (i * _horizontalDistanceBetweenRays), rayOrigin.y);
 			Debug.DrawRay(rayVector, rayDirection * rayDistance, Color.red);
-
 			var raycastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, mask);
 		
 			// **** Break the loop here if we're not hitting anything ****
@@ -670,7 +389,6 @@ public class CharacterController2D : MonoBehaviour
 					standingOnDistance = verticalDistanceToHit;
 					StandingOn = raycastHit.collider.gameObject;
 				}
-
 			}
 
 			// pretty much mirrors what we did with move horizontally
@@ -692,7 +410,6 @@ public class CharacterController2D : MonoBehaviour
 				deltaMovement.y += SkinWidth;
 				// we are hitting something below
 				State.IsCollidingBelow = true;
-
 			}
 
 			// Specific to slopes. If we're not going up, and our deltamove is more than .0001, that means
@@ -703,7 +420,6 @@ public class CharacterController2D : MonoBehaviour
 			if(rayDistance < SkinWidth + .0001f)
 				break;
  		}
-
 	}
 
 	private void EdgeDetect(ref Vector2 deltaMovement)
@@ -715,13 +431,10 @@ public class CharacterController2D : MonoBehaviour
 		// 2) As the player moves off of an edge, the raycasts follow, so it doesn't not allow for a very big window. Cast rays from higher up/different location?
 		//
 		// This could/should still be modified to work with enemy AI that is not meant to drop off of ledges
-
 		var rayDistance = 2.0f;
 		var rayDirection = -Vector2.up;
-
 		var center = (_raycastBottomLeft.x + _raycastBottomRight.x) / 2;
 		var rayVector = new Vector2 (center + deltaMovement.x + Parameters.generalMovement.edgeDetectDistance, _raycastBottomLeft.y + deltaMovement.y);
-
 
 		for (var i = 0; i < 2; i++)
 		{
@@ -737,21 +450,16 @@ public class CharacterController2D : MonoBehaviour
 
 				if(i == 0) State.EdgeDetectedRight = false;
 				if(i == 1) State.EdgeDetectedLeft = false;
-			}
-		
+			}		
 
 			if(!rayCastHit)
 			{
 				_groundDetected = false;
 				if(i == 0) State.EdgeDetectedRight = true;
-				if(i == 1) State.EdgeDetectedLeft = true;
-				
+				if(i == 1) State.EdgeDetectedLeft = true;				
 			}
 		}
-
-	}
-
-	
+	}	
 
 	private void HandleVerticalSlope(ref Vector2 deltaMovement)
 	{
@@ -784,10 +492,7 @@ public class CharacterController2D : MonoBehaviour
 
 		State.IsMovingDownSlope = true; // mark that we're moving down slope
 		State.SlopeAngle = angle;       // store the angle
-
-		deltaMovement.y = rayCastHit.point.y - slopeRayVector.y;
-
-	
+		deltaMovement.y = rayCastHit.point.y - slopeRayVector.y;	
 	}
 
 	private bool HandleHorizontalSlope (ref Vector2 deltaMovement, float angle, bool isGoingRight)
@@ -813,10 +518,9 @@ public class CharacterController2D : MonoBehaviour
 		State.IsMovingUpSlope = true;
 		State.IsCollidingBelow = true;
 		return true;
-
 	}
 
-	public bool CanStand(float deltaMovementX)
+	private void CanStand(float deltaMovementX)
 	{
 		// Used to check if there's anything above us while crouching
 		
@@ -825,8 +529,7 @@ public class CharacterController2D : MonoBehaviour
 		var rayOrigin = _raycastTopLeft;
 		
 		for ( var i = 0; i < TotalVerticalRays; i++)
-		{
-			
+		{			
 			// Cast rays
 			var rayVector = new Vector2(deltaMovementX + rayOrigin.x + (i * _horizontalDistanceBetweenRays), rayOrigin.y);
 			Debug.DrawRay (rayVector, rayDirection * rayDistance, Color.yellow);
@@ -834,16 +537,16 @@ public class CharacterController2D : MonoBehaviour
 			
 			// There's something above us, we can't stand
 			if (rayCastHit) 
-				return false;
-		}
-		
+			{
+				State.AbleToStand = false;
+				return;
+			}
+		}		
 		// If we got this far, that means we can stand!
 		State.AbleToStand = true;
-		return true;
 	}
 
 	#endregion
-	//========================================================================================================================//
 
 	//=========== TRIGGERS ===================================================================================================//
 	#region TRIGGERS
@@ -871,60 +574,25 @@ public class CharacterController2D : MonoBehaviour
 			return;
 
 		_overrideParameters = null;
-
 	}
 	#endregion
-	//========================================================================================================================//
 
-	//========================================================================================================================//
 	//============ TOOL BOX ==================================================================================================//
-	//========================================================================================================================//
 	#region TOOLBOX
-
-	public int XInputDir()
-	{
-		// Check to see which horizontal input is being pressed, if any
-
-		if(Input.GetAxisRaw("Horizontal") <= -0.5 || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-			return -1;
-
-		else if (Input.GetAxisRaw ("Horizontal") >= 0.5 || Input.GetKey (KeyCode.D) || Input.GetKey (KeyCode.RightArrow))
-			return 1;
-
-		return 0;
-	}
-
-	public int YInputDir()
-	{
-		// Check to see which vertical input is being pressed, if any
-
-		if (Input.GetAxisRaw ("Vertical") <= -0.5 || Input.GetKey (KeyCode.S) || Input.GetKey (KeyCode.DownArrow))
-			return -1;
-		
-		if (Input.GetAxisRaw ("Vertical") >= 0.5 || Input.GetKey (KeyCode.A) || Input.GetKey (KeyCode.UpArrow))
-			return 1;
-
-		return 0;
-	}
-
 
 	public void RecalculateDistanceBetweenRays()
 	{
-		// Every time we change the size of the box collider, we need to do this math again
-
-		// Raycasting math? Need to watch 3DBuzz "Horizontal Movement" video again around 15:00 to understand this
+		// 3DBuzz "Horizontal Movement" video around 15:00
 		var colliderWidth = _boxCollider.size.x * Mathf.Abs (transform.localScale.x) - (2 * SkinWidth);
 		_horizontalDistanceBetweenRays = colliderWidth / (TotalVerticalRays - 1);
 		
 		var colliderHeight = _boxCollider.size.y * Mathf.Abs (transform.localScale.y) - (2 * SkinWidth);
 		_verticalDistanceBetweenRays = colliderHeight / (TotalHorizontalRays - 1);
-
 	}
 
 	public void ResetColliderSize()
 	{
 		// Set the player's box collider back to whatever it was at level start
-
 		_boxCollider.center = boxColliderOriginalCenter;
 		_boxCollider.size = boxColliderOriginalSize;
 	}
@@ -933,26 +601,32 @@ public class CharacterController2D : MonoBehaviour
 	{
 		// Reset the mesh size of the capsule. I'm just using this for now as a quick and dirty way to make the prototype capsule 
 		// "stand up" from its "crouch" size
-
 		GameObject player = GameObject.Find("Capsule");
 		player.transform.localScale = new Vector3(2.7f, 2.7f, 1.4f);
 		player.transform.localPosition = new Vector3(player.transform.localPosition.x, -0.06f, player.transform.localPosition.z);
 	}
 
-	private void ResetWallJump()
-	{
-		// Set all wall jump variables to their default state
-
-		wallJump = false;
-		State.WallSlideLeft = false;
-		State.WallSlideRight = false;
-		wallDropTimer = wallDropTimerReset;
+	public void CrouchResize()
+	{		
+		// The value for _boxcollider.center must be manually tweaked for now so that it doesn't cause the player to slightly rise when it's reset upon exiting crouch.
+		// If the player does rise slightly, it cause them to fall through a one way platform
+		_boxCollider.center = new Vector2(_boxCollider.center.x, -1.05f);
+		_boxCollider.size = new Vector2(_boxCollider.size.x, 3.35f);
 		
+		RecalculateDistanceBetweenRays ();
+		
+		GameObject player = GameObject.Find("Capsule");
+		player.transform.localScale = new Vector3(3.25f, 1.85f, 1.4f);
+		player.transform.localPosition = new Vector3(player.transform.localPosition.x, -0.9f, player.transform.localPosition.z);		
 	}
 
-	public void ResetLastGround()
+	public void ResetWallJump()
 	{
-		_lastGroundObject = null;
+		// Set all wall jump variables to their default state		
+		State.WallSliding = false;
+		State.WallSlideLeft = false;
+		State.WallSlideRight = false;
+		//Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		
 	}
 
 	public void ResetParameters()
@@ -960,10 +634,11 @@ public class CharacterController2D : MonoBehaviour
 		_overrideParameters = null;
 	}
 
+	public void SetJumpIn(float value)
+	{
+		_jumpIn = value;
+	}
 
 	#endregion
-	//========================================================================================================================//
-	//========================================================================================================================//
-
 
 }

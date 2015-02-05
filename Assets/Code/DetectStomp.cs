@@ -33,7 +33,7 @@ public class DetectStomp : MonoBehaviour
 
 			var _playerController = other.GetComponentInParent<CharacterController2D>();
 
-			if(_playerController.jumpButton)_playerController.SetVerticalForce(80);
+			//if(_playerController.jumpButton)_playerController.SetVerticalForce(80);
 			_playerController.SetVerticalForce(40);
 
 

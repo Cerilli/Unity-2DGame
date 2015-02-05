@@ -35,6 +35,7 @@ public class ControllerParameters2D
 		public float WalkSpeed =                14f;
 		public bool canSprint = 				true;
 		public float SprintSpeed =	    		20f;
+		public bool DetectEdges = 				true;
 		public float edgeDetectDistance =       3.0f;
 	}
 
@@ -54,6 +55,7 @@ public class ControllerParameters2D
 		public float JumpHeightTimer= 			0.2f;
 		public float doubleJumpMagnitude =		 40f;		// How much force for the double jump
 		public float doubleJumpTimer = 			0.2f;
+		public float wallDropTimer = 			0.2f;       // How long the player clings to the wall after letting go of button
 		//public float LowJumpModifier = 		 	 .2f;		// multiply jump height by this value when jump button is tapped instead of held
 	}
 

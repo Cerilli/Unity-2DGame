@@ -4,6 +4,7 @@ using System.Collections;
 public class GameHud : MonoBehaviour 
 {
 	public GUISkin Skin;
+	public Player player;
 
 	public void OnGUI()
 	{

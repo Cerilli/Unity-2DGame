@@ -17,11 +17,13 @@ public class ControllerState2D {
 	public bool IsJumping { get; set;}
 	public bool IsSlidingDownHill {get; set;}
 	public bool IsGrounded { get {return IsCollidingBelow;} }
+	public bool DoubleJump {get; set;}
 
+	public bool WallJump {get; set;}
 	public bool WallSlideRight{ get; set; }
 	public bool WallSlideLeft { get; set; }
+	public bool WallSliding {get; set;}
 	public bool HasWallJumped { get; set; }
-
 
 	public bool CanMoveFreely {get; set; }
 	public bool AbleToStand {get; set;}
@@ -42,12 +44,9 @@ public class ControllerState2D {
 			IsCollidingBelow = 
 			IsSprinting =
 			IsBouncingOnJumpPad = 
-			HasWallJumped =       false;
+			HasWallJumped =  false;
 
-		AbleToStand = 
-			CanMoveFreely = true;
-
-			
+		AbleToStand =  		 true;			
 
 		SlopeAngle = 0; 
 	}
