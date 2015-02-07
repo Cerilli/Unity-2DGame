@@ -33,9 +33,12 @@ public class DetectStomp : MonoBehaviour
 
 			var _playerController = other.GetComponentInParent<CharacterController2D>();
 
-			//if(_playerController.jumpButton)_playerController.SetVerticalForce(80);
-			_playerController.SetVerticalForce(40);
+			_playerController.State.IsStomping = true;
+			if (_playerController.State.IsDiving)
+				_playerController.SetVerticalForce(50);
 
+			else
+				_playerController.SetVerticalForce(40);
 
 		}
 	}

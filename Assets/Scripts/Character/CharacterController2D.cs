@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class CharacterController2D : MonoBehaviour 
@@ -15,7 +15,7 @@ public class CharacterController2D : MonoBehaviour
 			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpAnywhere)
 				return _jumpIn <= 0;
 			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpOnGround)
-				if(( State.IsGrounded || _groundDetected) || State.WallSliding )
+				if(( State.IsGrounded || _groundDetected) || State.IsWallSliding )
 					return true;
 				else 
 					return false;
@@ -27,6 +27,8 @@ public class CharacterController2D : MonoBehaviour
 	// ?? is the null coalescing operator - same as saying 'if _overrideParmeters != null, return it, else return DefaultParameters'
 	// when you access the parameters through this property, it will return either the DefaultParameters, or the _overrideParameters
 	public GameObject StandingOn { get; private set; }
+	public AnimationCurve slopeSpeedMultiplier = new AnimationCurve( new Keyframe( -90, -100f ), new Keyframe( 0, 1f ), new Keyframe( 90, 100.0f) );
+
 	
 	public LayerMask PlatformMask= 0; 	
 	[SerializeField]
@@ -101,7 +103,7 @@ public class CharacterController2D : MonoBehaviour
 	{
 		_jumpIn -= Time.deltaTime;
 		Move (Velocity * Time.deltaTime);
-		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;  // Gravity	
+		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;  // Gravity		
 	}
 
 	private void Move(Vector2 deltaMovement)
@@ -121,7 +123,7 @@ public class CharacterController2D : MonoBehaviour
 
 			// If moving to the left or right, then MoveHorizontally and check for collisions
 			// Also want to call it when wall jumping, as our movement will be 0, but we'll want to know if we slide off a wall
-			if (Mathf.Abs(deltaMovement.x) > .001f || State.WallSliding)		
+			if (Mathf.Abs(deltaMovement.x) > .001f || State.IsWallSliding)		
 				MoveHorizontally(ref deltaMovement);
 
 			MoveVertically(ref deltaMovement); // we will always be moving vertically, as gravity will always be acting upon us
@@ -152,15 +154,15 @@ public class CharacterController2D : MonoBehaviour
 		#region MOVE ADJUSTMENTS
 
 		// Max fall speed
-		if (_velocity.y < Parameters.generalMovement.TerminalVelocity)
-						_velocity.y = Parameters.generalMovement.TerminalVelocity;
+		//if (_velocity.y < Parameters.generalMovement.TerminalVelocity)
+		//				_velocity.y = Parameters.generalMovement.TerminalVelocity;
 
 		// Also apply max velocity when we're going left (making _velocity.x a negative value)
 		if(_velocity.x < Parameters.generalMovement.MaxVelocity.x * -1 )	
 			_velocity.x = Parameters.generalMovement.MaxVelocity.x * -1;
 
 		// Have the player move slower on a wall
-		if ( State.WallSliding && Parameters.jumpProperties.wallDropTimer > 0)
+		if ( State.IsWallSliding && Parameters.jumpProperties.wallDropTimer > 0)
 		{
 			// Ease out of vertical movement
 			if (_velocity.y > 0)
@@ -279,7 +281,7 @@ public class CharacterController2D : MonoBehaviour
 		var rayOrigin = isGoingRight ? _raycastBottomRight : _raycastBottomLeft; // Will set the ray origin to either bottom right or bottom left based on direction we are moving
 
 		// while wall sliding, only draw one ray at the feet to check for the end of a wall
-		if (State.WallSliding)
+		if (State.IsWallSliding)
 		{
 			rayDistance = 0.2f;
 			rayDirection = State.WallSlideRight ? Vector2.right : -Vector2.right;
@@ -404,6 +406,8 @@ public class CharacterController2D : MonoBehaviour
 				deltaMovement.y -= SkinWidth;
 				// we are hitting something above
 				State.IsCollidingAbove = true;
+				if(State.IsJumping)
+					State.IsJumpCollidingAbove = true;
 			}
 			else
 			{
@@ -490,8 +494,14 @@ public class CharacterController2D : MonoBehaviour
 		if (Mathf.Abs(angle) < .0001f)
 			return;
 
+		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
+		{
+			var slopeModifier = slopeSpeedMultiplier.Evaluate( -angle );
+			deltaMovement.x *= slopeModifier;
+		}
 		State.IsMovingDownSlope = true; // mark that we're moving down slope
 		State.SlopeAngle = angle;       // store the angle
+
 		deltaMovement.y = rayCastHit.point.y - slopeRayVector.y;	
 	}
 
@@ -507,14 +517,22 @@ public class CharacterController2D : MonoBehaviour
 				return true;
 		}
 
-		if (deltaMovement.y > .01) // if we're moving up-ish
+		if (deltaMovement.y > .07f) // if we're moving up-ish
 			return true;
 
-		deltaMovement.x += isGoingRight ? -SkinWidth : SkinWidth;
+		// Idea taken from Corgi Controller to allow tweaking of speed on slopes. Right now I'm
+		// using it to try to stop the player from moving slower on slopes less than 45 degrees
+		// Not sure that it's a good solution
+		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
+		{
+			var slopeModifier = slopeSpeedMultiplier.Evaluate( angle );		
+			deltaMovement.x *= slopeModifier;
+		}
 	
+		deltaMovement.x += isGoingRight ? -SkinWidth : SkinWidth;
 		// modify vertical movement based on the angle of the slope we're moving up
 		deltaMovement.y = Mathf.Abs(Mathf.Tan(angle * Mathf.Deg2Rad) * deltaMovement.x);
-
+		Debug.Log(deltaMovement.y);
 		State.IsMovingUpSlope = true;
 		State.IsCollidingBelow = true;
 		return true;
@@ -623,7 +641,7 @@ public class CharacterController2D : MonoBehaviour
 	public void ResetWallJump()
 	{
 		// Set all wall jump variables to their default state		
-		State.WallSliding = false;
+		State.IsWallSliding = false;
 		State.WallSlideLeft = false;
 		State.WallSlideRight = false;
 		//Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		

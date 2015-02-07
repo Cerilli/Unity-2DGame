@@ -1,22 +1,23 @@
 ﻿<Properties>
-  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Scripts\Environment\Jump Platforms\JumpPlatformDirectional.cs">
+    <Files>
+      <File FileName="Assets\Scripts\Environment\Jump Platforms\JumpPlatformDirectional.cs" Line="63" Column="58" />
+      <File FileName="Assets\Scripts\Character\Player.cs" Line="251" Column="49" />
+      <File FileName="Assets\Scripts\Character\ControllerState2D.cs" Line="40" Column="14" />
+    </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State expanded="True">
           <Node name="Assembly-CSharp" expanded="True">
-            <Node name="CorgiEngine" expanded="True">
-              <Node name="scripts" expanded="True">
-                <Node name="camera" expanded="True" />
-                <Node name="character" expanded="True" />
-                <Node name="enemies" expanded="True" selected="True" />
-                <Node name="environment" expanded="True" />
-                <Node name="gameManagement" expanded="True" />
-                <Node name="gui" expanded="True" />
-                <Node name="helpers" expanded="True" />
-                <Node name="items" expanded="True" />
-                <Node name="weapons" expanded="True" />
+            <Node name="Scripts" expanded="True">
+              <Node name="Character" expanded="True" />
+              <Node name="Environment" expanded="True">
+                <Node name="Jump Platforms" expanded="True">
+                  <Node name="JumpPlatformDirectional.cs" selected="True" />
+                </Node>
               </Node>
+              <Node name="Projectiles" expanded="True" />
             </Node>
           </Node>
         </State>
@@ -26,10 +27,7 @@
       </Pad>
       <Pad Id="MonoDevelop.Debugger.WatchPad">
         <State>
-          <Value>this._controller.doubleJump</Value>
-          <Value>this._controller.State.IsGrounded</Value>
-          <Value>this._controller.Parameters.jumpProperties.JumpHeightTimer</Value>
-          <Value>this._controller._jumpHeightTimerReset</Value>
+          <Value>this._controller.State.AbleToDash</Value>
         </State>
       </Pad>
     </Pads>

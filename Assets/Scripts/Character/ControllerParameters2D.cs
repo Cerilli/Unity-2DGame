@@ -12,6 +12,7 @@ public class ControllerParameters2D
 	public GeneralMovement generalMovement;
 	public JumpProperties jumpProperties;
 	public CrouchProperties crouchProperties;
+	public DashProperties dashProperties;
 
 	public enum JumpBehaviour
 	{
@@ -31,7 +32,7 @@ public class ControllerParameters2D
 		public float AccelerationInAir		= 5f;
 		 
 		[Range(0, 99)]
-		public float SlopeLimit = 				 30f;		// The angle that we're allowed to climb. It will be set to 30, but will show up in the inspector as a slider with the range 0-99
+		public float SlopeLimit = 	    		 30f;		// The angle that we're allowed to climb. It will be set to 30, but will show up in the inspector as a slider with the range 0-99
 		public float WalkSpeed =                14f;
 		public bool canSprint = 				true;
 		public float SprintSpeed =	    		20f;
@@ -60,9 +61,20 @@ public class ControllerParameters2D
 	}
 
 	[Serializable]
+	public class DashProperties
+	{	
+		public bool canDash =             		true;
+		public float DashForce = 	           	5f;
+		public float DashDuration= 				.15f;
+		public float DashCooldown = 			1f;
+		public float DownDashForce=             1.2f;
+	}
+
+	[Serializable]
 	public class CrouchProperties
 	{
 		public bool CanCrouch = 				true;
+		public bool SlideToCrouch = 			true;
 		public float CrouchJumpModifier = 		0.5f;		// Multiplier for jump height while crouching
 		public float CrouchMoveSpeed = 			0.8f;		// Multiplier for movement while crouching				
 	}	

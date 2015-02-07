@@ -17,6 +17,13 @@ public class JumpPlatform : MonoBehaviour
 		var player = controller.GetComponent<Player>();
 		if (player != null)
 		{
+			if(controller.State.IsDiving)
+			{
+				controller.SetVerticalForce(BigJumpMagnitude);
+				controller.State.IsBouncingOnJumpPad = false;
+				return;
+			}
+
 			if (player.JumpButton())
 			{
 				controller.SetVerticalForce(BigJumpMagnitude);

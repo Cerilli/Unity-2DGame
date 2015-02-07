@@ -26,11 +26,17 @@ public class Player : MonoBehaviour, ITakeDamage
 	public int Health 	{get; private set;}
 	public bool IsDead 	{get; private set;}
 
+	private float _originalGravity;
+	private float _originalGroundAccel;
+	private float _originalAirAccel;
+
 	private float _canFireIn;
 	private bool _jumpButtonPressed;
 	//private bool _jumpButtonReleased;
 	private float _jumpHeightTimerReset;
 	private float _wallDropTimerReset;
+	private float _dashDirection = 1f; 
+	private float _boostForce;
 
 	public bool Invincible;
 	public bool doHandleInput = true;
@@ -48,12 +54,23 @@ public class Player : MonoBehaviour, ITakeDamage
 		isFacingRight = transform.localScale.x > 0; // if we are flipped, the localscale.x will be less than one, so we'll know we aren't facing right
 		MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
 
+		_originalGravity = _controller.Parameters.generalMovement.Gravity;
+		_originalGroundAccel = _controller.Parameters.generalMovement.AccelerationOnGround;
+		_originalAirAccel = _controller.Parameters.generalMovement.AccelerationInAir;
+
 		_jumpHeightTimerReset = _controller.Parameters.jumpProperties.JumpHeightTimer;	
 		_wallDropTimerReset = _controller.Parameters.jumpProperties.wallDropTimer;
+		_boostForce = _controller.Parameters.dashProperties.DashForce;
 
 		_controller.State.WallJump = false;
 		_controller.State.CanMoveFreely = true;
 		_controller.State.AbleToStand = true;
+		_controller.State.IsDiving = false;
+		_controller.State.IsStomping = false;
+		_controller.State.IsSlidingToCrouch  = false;
+		_controller.State.IsFalling = false;
+		_controller.State.IsJumpPadTraveling = false;
+		_controller.State.JumpPadDisabledControlsTimer = 0.02f;
 
 	}
 
@@ -66,10 +83,21 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		if(!IsDead && doHandleInput)
 		{
+			GravityActive(true);
 			HandleInput (); 
-			HorizontalMovement();
+
+			if(!_controller.State.IsSlidingToCrouch)
+				HorizontalMovement();
+
 			VerticalMovement();
 			WallSlide();
+
+			// If the player is dashing, we cancel the gravity
+			if (_controller.State.IsDashing) 
+			{
+				GravityActive(false);
+				_controller.SetVerticalForce(0);
+			}	
 
 			//Jumping Checks
 			if(_controller.State.IsBouncingOnJumpPad)
@@ -77,7 +105,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			
 			if(_controller.State.IsJumping 
 			   && (!_controller.wasGroundedLastFrame 
-			    && _controller.State.IsGrounded) || _controller.State.WallSliding ) 
+			    && _controller.State.IsGrounded) || _controller.State.IsWallSliding ) 
 				_controller.State.IsJumping = false;
 
 			if (_controller.Parameters.jumpProperties.canVariableHeightJump  
@@ -89,6 +117,8 @@ public class Player : MonoBehaviour, ITakeDamage
 			   && _controller.Parameters.jumpProperties.JumpHeightTimer != _jumpHeightTimerReset) 
 				_controller.Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
 
+
+
 		}	
 		else
 			_controller.SetHorizontalForce(0);
@@ -98,6 +128,20 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		if(_controller.State.IsGrounded)
 			_controller.State.DoubleJump = false;
+
+		if (_controller.State.IsJumpPadTraveling && _controller.State.IsGrounded)
+		{
+			if(_controller.State.JumpPadDisabledControlsTimer >=0)
+				_controller.State.JumpPadDisabledControlsTimer -= Time.deltaTime;
+			else
+			{
+				_controller.State.IsJumpPadTraveling = false;
+				if(!_controller.State.CanMoveFreely)
+				_controller.State.CanMoveFreely = true;
+				_controller.State.JumpPadDisabledControlsTimer = 0.02f;		
+			}
+		}
+
 	}
 
 	public void HorizontalMovement()
@@ -124,14 +168,10 @@ public class Player : MonoBehaviour, ITakeDamage
 		int yDir = YInputDir();
 
 		//Check for crouching
-		if(yDir == -1 && _controller.State.IsGrounded)
-		{
+		if(yDir == -1 && _controller.State.IsGrounded && !_controller.State.IsCrouching)
 			Crouch ();
-			_controller.State.IsCrouching = true;
-			MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;
-		}
 
-		if ( (yDir != -1 || _controller.State.WallSliding ) 
+		if ( (yDir != -1 || _controller.State.IsWallSliding ) 
 		    	&& _controller.State.IsCrouching
 		    	&& _controller.State.AbleToStand )
 		{
@@ -146,12 +186,17 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	}
 
+	//== ACTIONS =================================================
+	#region Actions
 	public void SprintStart()
 	{
-		if (!_controller.Parameters.generalMovement.canSprint)
-						return;
+		if(!_controller.State.CanMoveFreely)
+			return;
 
-		if(_controller.State.IsGrounded && !_controller.State.IsCrouching && !_controller.State.WallSliding )
+		if (!_controller.Parameters.generalMovement.canSprint)
+			return;
+
+		if(_controller.State.IsGrounded && !_controller.State.IsCrouching && !_controller.State.IsWallSliding )
 		{
 			MovementSpeed = _controller.Parameters.generalMovement.SprintSpeed;
 			_controller.State.IsSprinting = true;				
@@ -167,7 +212,46 @@ public class Player : MonoBehaviour, ITakeDamage
 	public void Crouch()
 	{
 		if(_controller.Parameters.crouchProperties.CanCrouch)
+		{
 			_controller.CrouchResize();
+			_controller.State.IsCrouching = true;
+		
+			if(_controller.Parameters.crouchProperties.SlideToCrouch)
+				StartCoroutine(SlideToCrouch());		
+			else
+				MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;			
+		}
+	}
+
+	public void Dash()
+	{
+		// if the player is not in a position where it can move freely, we do nothing.
+		if (!_controller.State.CanMoveFreely)
+			return;
+
+
+		var yDir = YInputDir();
+		// If the user presses the dash button and is not aiming down
+		if (yDir >-0.8) 
+		{	
+			if (_controller.State.AbleToDash)
+			{
+				_controller.State.IsDashing=true;
+				
+				
+				if (isFacingRight) { _dashDirection=1f; } else { _dashDirection = -1f; }
+				_boostForce=_dashDirection*_controller.Parameters.dashProperties.DashForce;
+				_controller.State.AbleToDash = false;
+				_controller.Parameters.generalMovement.AccelerationInAir = 300f;
+				_controller.Parameters.generalMovement.AccelerationOnGround = 300f;
+				StartCoroutine( Boost(_controller.Parameters.dashProperties.DashDuration,_boostForce,0,"dash") );
+			}			
+		}
+		
+		if (yDir<-0.8 && !_controller.State.IsGrounded) 
+		{
+			StartCoroutine(Dive());
+		}	
 	}
 
 	public void Jump()
@@ -190,7 +274,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		var JumpHeight = _controller.Parameters.jumpProperties.JumpMagnitude; 
 		
-		if (_controller.State.WallSliding)
+		if (_controller.State.IsWallSliding)
 		{
 			_controller.State.HasWallJumped = true;
 			// Jump off the wall depending on which side the wall is on, using WallJumpOut to affect x velocity off wall
@@ -239,20 +323,22 @@ public class Player : MonoBehaviour, ITakeDamage
 		if(_controller.State.DoubleJump && !_controller.Parameters.jumpProperties.canDoubleJump)
 			return;		
 		
+		// "_jumpIn" is used to determine if a player can jump or not
+		_controller.SetJumpIn(_controller.Parameters.jumpProperties.JumpFrequency);
+
 		// Jump
 		if(_controller.Parameters.jumpProperties.JumpHeightTimer >= 0 )
 		{
 			_controller.SetVerticalForce(JumpHeight);
 			_controller.Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
 			if (!_controller.State.IsJumping) _controller.State.IsJumping = true;
-		}		
-		
+		}			
 		
 		if(!_controller.Parameters.jumpProperties.canVariableHeightJump)
 			_controller.SetVerticalForce (JumpHeight);
 		
-		// "_jumpIn" is used to determine if a player can jump or not
-		_controller.SetJumpIn(_controller.Parameters.jumpProperties.JumpFrequency);
+
+
 	}
 
 	public void WallSlide()
@@ -264,7 +350,8 @@ public class Player : MonoBehaviour, ITakeDamage
 		    && (_controller.State.IsCollidingLeft || _controller.State.IsCollidingRight) 
 		    && _controller.Parameters.jumpProperties.canWallJump)
 		{
-			_controller.State.WallSliding = true;
+			_controller.State.IsWallSliding = true;
+			MovementSpeed =  _controller.Parameters.generalMovement.WalkSpeed;
 			if (_controller.State.IsCollidingLeft)
 			{	
 				_controller.State.WallSlideLeft = true;
@@ -286,11 +373,11 @@ public class Player : MonoBehaviour, ITakeDamage
 			_controller.Parameters.jumpProperties.wallDropTimer -= Time.deltaTime;
 		
 		// Turn wall jump off if we slide down a wall to the ground, or are no longer colliding with a wall
-		if (_controller.State.IsGrounded && _controller.State.WallSliding)
+		if (_controller.State.IsGrounded && _controller.State.IsWallSliding)
 			ResetWallJump ();
 		
 		// Stick to the wall if we are sliding and having been pushing against the wall 
-		if ( _controller.State.WallSliding && _controller.Parameters.jumpProperties.wallDropTimer > 0)
+		if ( _controller.State.IsWallSliding && _controller.Parameters.jumpProperties.wallDropTimer > 0)
 			_controller.SetHorizontalForce(0);
 		
 		// Reset State.HasWallJumped after landing from a wall jump
@@ -298,6 +385,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			_controller.State.HasWallJumped = false;
 
 	}
+	#endregion
 
 	public void FinishLevel()
 	{
@@ -335,6 +423,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		collider2D.enabled = true;
 		_controller.HandleCollisions = true;
 		_controller.State.IsSprinting = false;
+		_controller.State.AbleToDash = _controller.Parameters.dashProperties.canDash;
 		_controller.ResetParameters();
 
 		cameraController.ResetCamera();
@@ -375,24 +464,26 @@ public class Player : MonoBehaviour, ITakeDamage
 		Health = Mathf.Min (Health + health, MaxHealth);
 	}
 
-
 	private void HandleInput()
 	{
 		if (Input.GetKey(KeyCode.D) || (Input.GetAxis("Horizontal") > 0.4) ) 
 		{
 			_normalizedHorizontalSpeed = 1;
-			if (!isFacingRight && !_controller.State.WallSliding)
+			if (!isFacingRight && !_controller.State.IsWallSliding)
 					Flip();
 		}
 
 		else if (Input.GetKey (KeyCode.A)|| (Input.GetAxis("Horizontal") < -0.4) )
 		{
 			_normalizedHorizontalSpeed = -1; 
-			if (isFacingRight && !_controller.State.WallSliding)
+			if (isFacingRight && !_controller.State.IsWallSliding)
 					Flip();
 		} 
 		else 	
 			_normalizedHorizontalSpeed = 0;
+
+		if(Input.GetButtonDown("Dash"))
+			Dash();
 
 		if (Input.GetButtonDown("Jump")) 
 		{
@@ -444,12 +535,8 @@ public class Player : MonoBehaviour, ITakeDamage
 		AudioSource.PlayClipAtPoint(PlayerShootSound, transform.position);
 	}
 
-	private void Flip()
-	{
-		transform.localScale = new Vector3 (-transform.localScale.x, transform.localScale.y, transform.localScale.z);
-		isFacingRight = transform.localScale.x > 0;
-	}
-
+	//==COROUTINES==================================================
+	#region Coroutines
 	private IEnumerator BlinkFromDamage()
 	{
 		Invincible = true;
@@ -469,12 +556,123 @@ public class Player : MonoBehaviour, ITakeDamage
 		Invincible = false;
 	}
 
+	IEnumerator Boost(float boostDuration, float boostForceX, float boostForceY, string name)
+	{
+		float time = 0f; //create float to store the time this coroutine is operating
+		
+		while(boostDuration > time) //we call this loop every frame while our custom boostDuration is a higher value than the "time" variable in this coroutine
+		{
+			if(_controller.State.IsCollidingLeft || _controller.State.IsCollidingRight)
+				break;
+
+			if (boostForceX!=0)
+			{
+				_controller.AddForce(new Vector2(boostForceX,0));
+			}
+			if (boostForceY!=0)
+			{
+				_controller.AddForce(new Vector2(0,boostForceY));
+			}
+			time+=Time.deltaTime;
+			yield return 0; //go to next frame
+		}
+		if (name=="dash")
+		{
+			_controller.State.IsDashing=false;
+			_controller.Parameters.generalMovement.AccelerationInAir = _originalAirAccel;
+			_controller.Parameters.generalMovement.AccelerationOnGround = _originalGroundAccel;
+			GravityActive(true);
+			//MoveModifierHorizontal=0f;
+			yield return new WaitForSeconds(_controller.Parameters.dashProperties.DashCooldown); //Cooldown time for being able to boost again, if you'd like.
+			_controller.State.AbleToDash = true; //set back to true so that we can boost again.
+		}	
+		if (name=="wallJump")
+		{
+			//MoveModifierHorizontal=0f;
+		}		
+	}
+
+	IEnumerator Dive()
+	{	
+		// Shake parameters : intensity, duration (in seconds) and decay
+		//Vector3 ShakeParameters = new Vector3(1.5f,0.5f,1f);
+		_controller.State.IsDiving=true;
+		while (!_controller.State.IsGrounded)
+		{
+			if(_controller.State.IsStomping)
+			{
+				_controller.State.IsStomping = false;
+				break;
+			}
+			_controller.SetVerticalForce(_controller.Parameters.generalMovement.Gravity*-_controller.Parameters.dashProperties.DownDashForce);
+			yield return 0; //go to next frame
+		}
+		
+		// Shake the scene 		
+		//_sceneCamera.SendMessage("Shake",ShakeParameters);
+		
+		_controller.State.IsDiving=false;
+	}
+
+	IEnumerator SlideToCrouch()
+	{
+		_controller.State.IsSlidingToCrouch = true;
+
+		if(isFacingRight)
+		{
+			while ((_controller.Velocity.x -0.4f) > _controller.Parameters.crouchProperties.CrouchMoveSpeed )
+			{
+				if(!_controller.State.IsCrouching)
+					break;
+
+				_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,_controller.Parameters.crouchProperties.CrouchMoveSpeed, .3f));
+				yield return 0;
+			}
+		}
+		if(!isFacingRight)
+			while ((_controller.Velocity.x +0.4f) < -_controller.Parameters.crouchProperties.CrouchMoveSpeed )
+		{
+			if(!_controller.State.IsCrouching)
+				break;
+			
+			_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,_controller.Parameters.crouchProperties.CrouchMoveSpeed, .3f));			
+			yield return 0;
+		}
+
+		_controller.State.IsSlidingToCrouch = false;
+		MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;
+	}
+
+	#endregion
+
+	//==TOOLS=======================================================
+	#region Tools
+	private void Flip()
+	{
+		transform.localScale = new Vector3 (-transform.localScale.x, transform.localScale.y, transform.localScale.z);
+		isFacingRight = transform.localScale.x > 0;
+	}
+
+	private void GravityActive(bool state)
+	{
+		if (state==true)
+		{
+			if (_controller.Parameters.generalMovement.Gravity==0)
+			{
+				_controller.Parameters.generalMovement.Gravity = _originalGravity;
+			}
+		}
+		else
+		{
+			_controller.Parameters.generalMovement.Gravity = 0;
+		}
+	}
+
 	public void ResetInput()
 	{
 		_normalizedHorizontalSpeed = 0;
 		_jumpButtonPressed = false;
 	}
-
 
 	public int YInputDir()
 	{
@@ -504,13 +702,11 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	public void ResetWallJump()
 	{
-		// Set all wall jump variables to their default state
-		
-		_controller.State.WallSliding = false;
+		// Set all wall jump variables to their default state		
+		_controller.State.IsWallSliding = false;
 		_controller.State.WallSlideLeft = false;
 		_controller.State.WallSlideRight = false;
-		_controller.Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;
-		
+		_controller.Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		
 	}
 
 	public void ToggleGodMode()
@@ -523,6 +719,7 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		return _jumpButtonPressed;
 	}
+	#endregion
 }
 
 
