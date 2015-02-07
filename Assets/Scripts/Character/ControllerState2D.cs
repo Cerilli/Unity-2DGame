@@ -24,6 +24,9 @@ public class ControllerState2D {
 	public bool IsSlidingToCrouch {get; set;}
 	public bool IsJumpPadTraveling {get; set; }
 	public bool IsWallSliding {get; set;}
+	public bool IsClimbingLadder{get; set;}
+	public bool IsCollidingWithLadder{get; set;}
+	public bool IsCollidingLadderTop{get; set;}
 	public bool IsFalling {get; set;}
 	public bool DoubleJump {get; set;}
 
@@ -35,9 +38,12 @@ public class ControllerState2D {
 	public bool CanMoveFreely {get; set; }
 	public bool AbleToDash {get; set;}
 	public bool AbleToStand {get; set;}
+	public bool AbleToFire{get; set;}
 	public bool EdgeDetectedRight {get; set;}
 	public bool EdgeDetectedLeft {get; set;}
+
 	public float JumpPadDisabledControlsTimer {get; set;}
+	public float LadderClimbingSpeed {get; set;}
 
 	public float SlopeAngle { get; set; }
 	

@@ -70,6 +70,9 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller.State.IsSlidingToCrouch  = false;
 		_controller.State.IsFalling = false;
 		_controller.State.IsJumpPadTraveling = false;
+		_controller.State.IsCollidingWithLadder= false;
+		_controller.State.IsClimbingLadder = false;
+		_controller.State.IsCollidingLadderTop = false;
 		_controller.State.JumpPadDisabledControlsTimer = 0.02f;
 
 	}
@@ -91,6 +94,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 			VerticalMovement();
 			WallSlide();
+			LadderClimb();
 
 			// If the player is dashing, we cancel the gravity
 			if (_controller.State.IsDashing) 
@@ -229,10 +233,9 @@ public class Player : MonoBehaviour, ITakeDamage
 		if (!_controller.State.CanMoveFreely)
 			return;
 
-
 		var yDir = YInputDir();
 		// If the user presses the dash button and is not aiming down
-		if (yDir >-0.8) 
+		if (yDir >-0.8 && _controller.Parameters.dashProperties.canDash) 
 		{	
 			if (_controller.State.AbleToDash)
 			{
@@ -248,7 +251,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			}			
 		}
 		
-		if (yDir<-0.8 && !_controller.State.IsGrounded) 
+		if (yDir<-0.8 && !_controller.State.IsGrounded && _controller.Parameters.dashProperties.canDownDash) 
 		{
 			StartCoroutine(Dive());
 		}	
@@ -384,6 +387,57 @@ public class Player : MonoBehaviour, ITakeDamage
 		if(_controller.State.IsGrounded && _controller.State.HasWallJumped)
 			_controller.State.HasWallJumped = false;
 
+	}
+
+	void LadderClimb()
+	{
+		var yDir = YInputDir();
+
+		if (_controller.State.IsCollidingWithLadder)
+		{
+			if (yDir == 1 && !_controller.State.IsClimbingLadder && !_controller.State.IsCollidingLadderTop )
+			{			
+				_controller.State.IsClimbingLadder=true;
+				_controller.State.CanMoveFreely=false;
+				//ShootStop();
+				_controller.State.LadderClimbingSpeed=0;
+				
+				_controller.SetHorizontalForce(0);
+				_controller.SetVerticalForce(0);
+				GravityActive(false);
+			}			
+			
+			if (_controller.State.IsClimbingLadder)
+			{
+				_controller.State.AbleToFire=false;
+				GravityActive(false);
+				_controller.SetVerticalForce(yDir * _controller.Parameters.generalMovement.LadderClimbSpeed);
+				_controller.State.LadderClimbingSpeed=Mathf.Abs(yDir);				
+			}
+			
+			if (_controller.State.IsClimbingLadder && _controller.State.IsGrounded)
+			{
+				_controller.State.IsCollidingWithLadder=false;
+				_controller.State.IsClimbingLadder=false;
+				_controller.State.CanMoveFreely=true;
+				_controller.State.LadderClimbingSpeed=0;	
+				GravityActive(true);			
+			}			
+		}
+		
+		// If the player is colliding with the top of the ladder and is pressing down and is not on the ladder yet and is standing on the ground, we make it go down.
+		if (_controller.State.IsCollidingLadderTop && yDir == -1 && !_controller.State.IsClimbingLadder && _controller.State.IsGrounded)
+		{
+			transform.position=new Vector2(transform.position.x,transform.position.y-0.1f);
+			_controller.State.IsClimbingLadder=true;
+			_controller.State.CanMoveFreely=false;
+			_controller.State.LadderClimbingSpeed=0;
+			
+			_controller.SetHorizontalForce(0);
+			_controller.SetVerticalForce(0);
+			GravityActive(false);
+		}
+		
 	}
 	#endregion
 
@@ -681,7 +735,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		if (Input.GetAxisRaw ("Vertical") <= -0.5 || Input.GetKey (KeyCode.S) || Input.GetKey (KeyCode.DownArrow))
 			return -1;
 		
-		if (Input.GetAxisRaw ("Vertical") >= 0.5 || Input.GetKey (KeyCode.A) || Input.GetKey (KeyCode.UpArrow))
+		if (Input.GetAxisRaw ("Vertical") >= 0.5 || Input.GetKey (KeyCode.W) || Input.GetKey (KeyCode.UpArrow))
 			return 1;
 		
 		return 0;

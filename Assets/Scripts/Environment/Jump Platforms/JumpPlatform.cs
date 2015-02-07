@@ -5,6 +5,8 @@ public class JumpPlatform : MonoBehaviour
 {
 	public float LittleJumpMagnitude = 20;
 	public float BigJumpMagnitude = 50;
+	public GameObject BoostEffect;
+	public Transform emitPos;
 
 	public AudioClip HitJumpPadSound;
 
@@ -17,19 +19,15 @@ public class JumpPlatform : MonoBehaviour
 		var player = controller.GetComponent<Player>();
 		if (player != null)
 		{
-			if(controller.State.IsDiving)
+			if(controller.State.IsDiving || player.JumpButton ())
 			{
 				controller.SetVerticalForce(BigJumpMagnitude);
 				controller.State.IsBouncingOnJumpPad = false;
+				if(BoostEffect != null && emitPos != null)
+					Instantiate (BoostEffect, emitPos.position, emitPos.rotation);
 				return;
 			}
-
-			if (player.JumpButton())
-			{
-				controller.SetVerticalForce(BigJumpMagnitude);
-				controller.State.IsBouncingOnJumpPad = false;
-				return;
-			}
+	
 		}
 
 		controller.State.IsBouncingOnJumpPad = true;

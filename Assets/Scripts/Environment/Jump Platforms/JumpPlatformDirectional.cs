@@ -45,7 +45,8 @@ public class JumpPlatformDirectional : MonoBehaviour
 		// Find the landing distance
 		var sintheta = (2 * (Mathf.Sin(launchAngle) * Mathf.Cos(launchAngle)));
 		float landingDistance = ( Mathf.Pow(magAdjust,2) / grav) * sintheta;
-		Debug.Log("Landing Dist: " + landingDistance);
+
+		//Debug.Log("Landing Dist: " + landingDistance);
 
 		var landingPosition = new Vector2( landingDistance, transform.position.y);
 

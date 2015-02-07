@@ -61,6 +61,7 @@
      <Compile Include="Assets\Scripts\Enemies\SimpleEnemyAI.cs" />
      <Compile Include="Assets\Scripts\Environment\Jump Platforms\JumpPlatform.cs" />
      <Compile Include="Assets\Scripts\Environment\Jump Platforms\JumpPlatformDirectional.cs" />
+     <Compile Include="Assets\Scripts\Environment\Ladders\Ladder.cs" />
      <Compile Include="Assets\Scripts\Floating Text\CenteredTextPositioner.cs" />
      <Compile Include="Assets\Scripts\Floating Text\FloatingText.cs" />
      <Compile Include="Assets\Scripts\Floating Text\FromWorldPointTextPositioner.cs" />

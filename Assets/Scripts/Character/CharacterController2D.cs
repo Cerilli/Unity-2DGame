@@ -532,7 +532,6 @@ public class CharacterController2D : MonoBehaviour
 		deltaMovement.x += isGoingRight ? -SkinWidth : SkinWidth;
 		// modify vertical movement based on the angle of the slope we're moving up
 		deltaMovement.y = Mathf.Abs(Mathf.Tan(angle * Mathf.Deg2Rad) * deltaMovement.x);
-		Debug.Log(deltaMovement.y);
 		State.IsMovingUpSlope = true;
 		State.IsCollidingBelow = true;
 		return true;

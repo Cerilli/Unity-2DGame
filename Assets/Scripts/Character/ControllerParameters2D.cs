@@ -38,6 +38,7 @@ public class ControllerParameters2D
 		public float SprintSpeed =	    		20f;
 		public bool DetectEdges = 				true;
 		public float edgeDetectDistance =       3.0f;
+		public float LadderClimbSpeed = 		8.0f;
 	}
 
 	[Serializable]
@@ -64,6 +65,7 @@ public class ControllerParameters2D
 	public class DashProperties
 	{	
 		public bool canDash =             		true;
+		public bool canDownDash = 				true;
 		public float DashForce = 	           	5f;
 		public float DashDuration= 				.15f;
 		public float DashCooldown = 			1f;
