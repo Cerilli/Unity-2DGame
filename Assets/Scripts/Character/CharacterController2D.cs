@@ -27,7 +27,7 @@ public class CharacterController2D : MonoBehaviour
 	// ?? is the null coalescing operator - same as saying 'if _overrideParmeters != null, return it, else return DefaultParameters'
 	// when you access the parameters through this property, it will return either the DefaultParameters, or the _overrideParameters
 	public GameObject StandingOn { get; private set; }
-	public AnimationCurve slopeSpeedMultiplier = new AnimationCurve( new Keyframe( -90, -100f ), new Keyframe( 0, 1f ), new Keyframe( 90, 100.0f) );
+	//public AnimationCurve slopeSpeedMultiplier = new AnimationCurve( new Keyframe( -90, -100f ), new Keyframe( 0, 1f ), new Keyframe( 90, 100.0f) );
 
 	
 	public LayerMask PlatformMask= 0; 	
@@ -496,7 +496,7 @@ public class CharacterController2D : MonoBehaviour
 
 		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
 		{
-			var slopeModifier = slopeSpeedMultiplier.Evaluate( -angle );
+			var slopeModifier = Parameters.generalMovement.slopeSpeedMultiplier.Evaluate( -angle );
 			deltaMovement.x *= slopeModifier;
 		}
 		State.IsMovingDownSlope = true; // mark that we're moving down slope
@@ -525,7 +525,7 @@ public class CharacterController2D : MonoBehaviour
 		// Not sure that it's a good solution
 		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
 		{
-			var slopeModifier = slopeSpeedMultiplier.Evaluate( angle );		
+			var slopeModifier = Parameters.generalMovement.slopeSpeedMultiplier.Evaluate( angle );		
 			deltaMovement.x *= slopeModifier;
 		}
 	

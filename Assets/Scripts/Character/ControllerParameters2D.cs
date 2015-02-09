@@ -28,17 +28,19 @@ public class ControllerParameters2D
 		public Vector2 MaxVelocity = new Vector2(float.MaxValue, float.MaxValue);
 		public float   TerminalVelocity = 		-60f;
 		public float Gravity = 				  	 60f;		// Every second, this many units are going to be applied to the Y direction
-		public float AccelerationOnGround = 10f; 				// How quickly the player goes from still to moving
-		public float AccelerationInAir		= 5f;
-		 
+		public float AccelerationOnGround =  	 10f; 		// How quickly the player goes from still to moving
+		public float AccelerationInAir =	 	  5f;		 
 		[Range(0, 99)]
-		public float SlopeLimit = 	    		 30f;		// The angle that we're allowed to climb. It will be set to 30, but will show up in the inspector as a slider with the range 0-99
-		public float WalkSpeed =                14f;
+		public float SlopeLimit = 	    		 30f;		// The angle that we're allowed to climb.
+		public float WalkSpeed =                 14f;
 		public bool canSprint = 				true;
-		public float SprintSpeed =	    		20f;
+		public float SprintSpeed =	    		 20f;
 		public bool DetectEdges = 				true;
+		[Tooltip ("How far out the edge detecting raycasts will be from the center of the character")]
 		public float edgeDetectDistance =       3.0f;
 		public float LadderClimbSpeed = 		8.0f;
+		[Tooltip ("A curve that multiplies the character speed based on the angle of the slope they are on")]
+		public AnimationCurve slopeSpeedMultiplier = new AnimationCurve( new Keyframe( -90, 1f ), new Keyframe( 0, 1f ), new Keyframe( 90, 1.5f) );
 	}
 
 	[Serializable]
@@ -47,28 +49,35 @@ public class ControllerParameters2D
 		public bool canDoubleJump = 			true;
 		public bool canDoubleJumpWhileCrouched= true;
 		public bool canWallJump = 			    true;
-		public bool canDoubleJumpOffWall = 		true;
-		public bool canVariableHeightJump =     true;
-		public float WallFriction = 		    0.8f;
-		public float WallJumpOut = 			    0.8f;	
+		public bool canDoubleJumpOffWall = 		true;			
 		public JumpBehaviour JumpRestrictions;				// Use our enum 
 		public float JumpFrequency =		    .25f;		// Limit how often the player can jump
 		public float JumpMagnitude = 			 55f;		// How much force added to y velocity when you jump
-		public float JumpHeightTimer= 			0.2f;
 		public float doubleJumpMagnitude =		 40f;		// How much force for the double jump
-		public float doubleJumpTimer = 			0.2f;
+		public float CrouchJumpHeight = 		  5f;
+
+		[Tooltip ("How long the character will be stuck to the wall if the player isn't pushing towards the wall")]
 		public float wallDropTimer = 			0.2f;       // How long the player clings to the wall after letting go of button
-		//public float LowJumpModifier = 		 	 .2f;		// multiply jump height by this value when jump button is tapped instead of held
+
+		[Tooltip ("Multiplies vertical velocity while wall sliding")]
+		public float WallFriction = 		    0.8f;
+
+		[Tooltip ("Multiplies jump magnitude when wall jumping")]
+		public float WallJumpOut = 			    0.8f;
 	}
 
 	[Serializable]
 	public class DashProperties
 	{	
 		public bool canDash =             		true;
+
+		[Tooltip ("Whether or not the character is able to slam into the ground while in the air")]
 		public bool canDownDash = 				true;
 		public float DashForce = 	           	5f;
 		public float DashDuration= 				.15f;
 		public float DashCooldown = 			1f;
+
+		[Tooltip ("How quicly the character slams into the ground")]
 		public float DownDashForce=             1.2f;
 	}
 
@@ -76,8 +85,9 @@ public class ControllerParameters2D
 	public class CrouchProperties
 	{
 		public bool CanCrouch = 				true;
-		public bool SlideToCrouch = 			true;
-		public float CrouchJumpModifier = 		0.5f;		// Multiplier for jump height while crouching
+
+		[Tooltip ("Causes the character to decelerate from their current speed when they crouch")]
+		public bool SlideToCrouch = 			true;			
 		public float CrouchMoveSpeed = 			0.8f;		// Multiplier for movement while crouching				
 	}	
 }

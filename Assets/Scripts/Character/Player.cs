@@ -32,11 +32,12 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	private float _canFireIn;
 	private bool _jumpButtonPressed;
-	//private bool _jumpButtonReleased;
+	private bool _jumpButtonReleased;
 	private float _jumpHeightTimerReset;
 	private float _wallDropTimerReset;
 	private float _dashDirection = 1f; 
 	private float _boostForce;
+	private bool _LTriggerInUse = false;
 
 	public bool Invincible;
 	public bool doHandleInput = true;
@@ -46,7 +47,7 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		_controller = GetComponent<CharacterController2D> ();
 		Health = MaxHealth; 
-
+		Physics2D.gravity = new Vector2(0, _controller.Parameters.generalMovement.Gravity);
 	}
 
 	public void Start()
@@ -58,7 +59,6 @@ public class Player : MonoBehaviour, ITakeDamage
 		_originalGroundAccel = _controller.Parameters.generalMovement.AccelerationOnGround;
 		_originalAirAccel = _controller.Parameters.generalMovement.AccelerationInAir;
 
-		_jumpHeightTimerReset = _controller.Parameters.jumpProperties.JumpHeightTimer;	
 		_wallDropTimerReset = _controller.Parameters.jumpProperties.wallDropTimer;
 		_boostForce = _controller.Parameters.dashProperties.DashForce;
 
@@ -73,6 +73,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller.State.IsCollidingWithLadder= false;
 		_controller.State.IsClimbingLadder = false;
 		_controller.State.IsCollidingLadderTop = false;
+		_controller.State.IsBouncingOnJumpPad = false;
 		_controller.State.JumpPadDisabledControlsTimer = 0.02f;
 
 	}
@@ -105,14 +106,27 @@ public class Player : MonoBehaviour, ITakeDamage
 
 			//Jumping Checks
 			if(_controller.State.IsBouncingOnJumpPad)
-				_controller.State.DoubleJump = true;		
+				_controller.State.IsDoubleJumping = true;		
 			
 			if(_controller.State.IsJumping 
 			   && (!_controller.wasGroundedLastFrame 
-			    && _controller.State.IsGrounded) || _controller.State.IsWallSliding ) 
+			   && _controller.State.IsGrounded) || _controller.State.IsWallSliding )
 				_controller.State.IsJumping = false;
 
-			if (_controller.Parameters.jumpProperties.canVariableHeightJump  
+			if(_controller.State.IsGrounded && _controller.Parameters.jumpProperties.canDoubleJump)
+				_controller.State.IsDoubleJumping = false;
+				
+			// If the user releases the jump button and the player is jumping up and enough time since the initial jump has passed, then stop jumping
+			if ( _controller.State.IsJumping 
+			    && (_controller.Velocity.y > Mathf.Sqrt(_controller.Parameters.generalMovement.Gravity)) 
+			    && _jumpButtonReleased
+			    && !_jumpButtonPressed )
+			{
+				//_controller.State.IsJumping = false;
+				_jumpButtonReleased=false;			
+				_controller.SetVerticalForce(_controller.Velocity.y * 0.5f);
+			}
+			/*if (_controller.Parameters.jumpProperties.canVariableHeightJump  
 			    && (_jumpButtonPressed && _controller.State.IsJumping) 
 			    && !_controller.State.IsCollidingAbove ) 
 				Jump ();
@@ -120,8 +134,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			if(!_jumpButtonPressed 
 			   && _controller.Parameters.jumpProperties.JumpHeightTimer != _jumpHeightTimerReset) 
 				_controller.Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
-
-
+			*/
 
 		}	
 		else
@@ -131,7 +144,11 @@ public class Player : MonoBehaviour, ITakeDamage
 	public void LateUpdate()
 	{
 		if(_controller.State.IsGrounded)
-			_controller.State.DoubleJump = false;
+			_controller.State.IsDoubleJumping = false;
+
+		// Collide with one way platforms again
+		if (_controller.State.IsJumpPadTraveling && _controller.Velocity.y <= 0)
+			Physics2D.IgnoreLayerCollision(12,10, false);
 
 		if (_controller.State.IsJumpPadTraveling && _controller.State.IsGrounded)
 		{
@@ -145,7 +162,6 @@ public class Player : MonoBehaviour, ITakeDamage
 				_controller.State.JumpPadDisabledControlsTimer = 0.02f;		
 			}
 		}
-
 	}
 
 	public void HorizontalMovement()
@@ -237,10 +253,11 @@ public class Player : MonoBehaviour, ITakeDamage
 		// If the user presses the dash button and is not aiming down
 		if (yDir >-0.8 && _controller.Parameters.dashProperties.canDash) 
 		{	
-			if (_controller.State.AbleToDash)
+			if (_controller.State.AbleToDash
+			    && (!_controller.State.IsCollidingLeft || !_controller.State.IsCollidingRight) 
+			    && !_controller.State.IsWallSliding)
 			{
-				_controller.State.IsDashing=true;
-				
+				_controller.State.IsDashing=true;				
 				
 				if (isFacingRight) { _dashDirection=1f; } else { _dashDirection = -1f; }
 				_boostForce=_dashDirection*_controller.Parameters.dashProperties.DashForce;
@@ -258,11 +275,8 @@ public class Player : MonoBehaviour, ITakeDamage
 	}
 
 	public void Jump()
-	{
-		if(_controller.State.IsGrounded)
-			_controller.Parameters.jumpProperties.JumpHeightTimer = _jumpHeightTimerReset;
-
-		if(_controller.State.DoubleJump)
+	{	
+		if(_controller.State.IsDoubleJumping)
 			return;
 
 		// Drop through one way platforms if crouch jump while standing on one
@@ -286,9 +300,9 @@ public class Player : MonoBehaviour, ITakeDamage
 			                                    (JumpHeight * _controller.Parameters.jumpProperties.WallJumpOut) * -1, JumpHeight));
 			
 			if(_controller.Parameters.jumpProperties.canDoubleJumpOffWall)
-				_controller.State.DoubleJump = false;
+				_controller.State.IsDoubleJumping = false;
 			else 
-				_controller.State.DoubleJump = true;
+				_controller.State.IsDoubleJumping = true;
 
 			if(_controller.State.WallSlideLeft && !isFacingRight)
 				Flip ();
@@ -298,50 +312,45 @@ public class Player : MonoBehaviour, ITakeDamage
 			// Force wallJump off if we have jumped
 			ResetWallJump();
 
-			if(_controller.Parameters.jumpProperties.JumpHeightTimer >= 0)
-			{
-				_controller.SetVerticalForce(JumpHeight);
-				_controller.Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-				_controller.State.IsJumping = true;
-			}
+			_controller.SetVerticalForce(JumpHeight);
+			_controller.State.IsJumping = true;
 			return;
 		}
 		
-		if(!_controller.State.DoubleJump 
-		   && !_controller.State.IsGrounded 
-		   && _controller.Parameters.jumpProperties.JumpHeightTimer == _jumpHeightTimerReset)	
+		if(!_controller.State.IsDoubleJumping && !_controller.State.IsGrounded )	
 		{
-			_controller.State.DoubleJump = true;
+			_controller.State.IsDoubleJumping = true;		
 			JumpHeight = _controller.Parameters.jumpProperties.doubleJumpMagnitude;
-			_controller.Parameters.jumpProperties.JumpHeightTimer = _controller.Parameters.jumpProperties.doubleJumpTimer;
 		}
+
+		if(_controller.State.IsDoubleJumping && !_controller.Parameters.jumpProperties.canDoubleJump)
+			return;		
 		
 		if (_controller.State.IsCrouching)
 		{	
-			if (_controller.State.DoubleJump && !_controller.Parameters.jumpProperties.canDoubleJumpWhileCrouched)
+			if (_controller.State.IsDoubleJumping && !_controller.Parameters.jumpProperties.canDoubleJumpWhileCrouched)
 				return;			
-			JumpHeight = JumpHeight * _controller.Parameters.crouchProperties.CrouchJumpModifier;
+			JumpHeight = _controller.Parameters.jumpProperties.CrouchJumpHeight;
 		}
-
-		if(_controller.State.DoubleJump && !_controller.Parameters.jumpProperties.canDoubleJump)
-			return;		
 		
 		// "_jumpIn" is used to determine if a player can jump or not
 		_controller.SetJumpIn(_controller.Parameters.jumpProperties.JumpFrequency);
 
 		// Jump
-		if(_controller.Parameters.jumpProperties.JumpHeightTimer >= 0 )
-		{
-			_controller.SetVerticalForce(JumpHeight);
-			_controller.Parameters.jumpProperties.JumpHeightTimer -= Time.deltaTime;
-			if (!_controller.State.IsJumping) _controller.State.IsJumping = true;
-		}			
+		_controller.State.IsClimbingLadder=false;
+		_controller.State.IsJumping = true;
+		GravityActive(true);
+		_jumpButtonPressed=true;
+		_jumpButtonReleased=false;
 		
-		if(!_controller.Parameters.jumpProperties.canVariableHeightJump)
-			_controller.SetVerticalForce (JumpHeight);
-		
+		_controller.SetVerticalForce(Mathf.Sqrt( JumpHeight/2 * _controller.Parameters.generalMovement.Gravity ));
 
+	}
 
+	public void JumpStop()
+	{
+		_jumpButtonPressed=false;
+		_jumpButtonReleased=true;
 	}
 
 	public void WallSlide()
@@ -358,12 +367,12 @@ public class Player : MonoBehaviour, ITakeDamage
 			if (_controller.State.IsCollidingLeft)
 			{	
 				_controller.State.WallSlideLeft = true;
-				_controller.State.DoubleJump = false;
+				_controller.State.IsDoubleJumping = false;
 			}
 			if (_controller.State.IsCollidingRight)
 			{
 				_controller.State.WallSlideRight = true;
-				_controller.State.DoubleJump = false;
+				_controller.State.IsDoubleJumping = false;
 			}
 		}
 
@@ -398,7 +407,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			if (yDir == 1 && !_controller.State.IsClimbingLadder && !_controller.State.IsCollidingLadderTop )
 			{			
 				_controller.State.IsClimbingLadder=true;
-				_controller.State.CanMoveFreely=false;
+				//_controller.State.CanMoveFreely=false;
 				//ShootStop();
 				_controller.State.LadderClimbingSpeed=0;
 				
@@ -438,6 +447,26 @@ public class Player : MonoBehaviour, ITakeDamage
 			GravityActive(false);
 		}
 		
+	}
+
+	private void FireProjectile()
+	{
+		if (_canFireIn > 0)
+			// we can't fire anything at this point
+			return;
+		
+		var direction = isFacingRight ? Vector2.right : -Vector2.right;
+		
+		// Instantiate the projectile at our determined position
+		var projectile = (Projectile)Instantiate(Projectile, ProjectileFireLocation.position, ProjectileFireLocation.rotation);
+		
+		// Intialize the projectile (therefore calling the functions from the Projectile class
+		projectile.Initialize(gameObject, direction, _controller.Velocity);
+		
+		// Reset the FireRate counter
+		_canFireIn = FireRate;
+		
+		AudioSource.PlayClipAtPoint(PlayerShootSound, transform.position);
 	}
 	#endregion
 
@@ -536,29 +565,34 @@ public class Player : MonoBehaviour, ITakeDamage
 		else 	
 			_normalizedHorizontalSpeed = 0;
 
-		if(Input.GetButtonDown("Dash"))
-			Dash();
+		if(Input.GetAxisRaw("Dash") != 0)
+		{
+			if(_LTriggerInUse == false)
+			{
+			   Dash();
+				_LTriggerInUse = true;
+			}
+		}
+
+		if(Input.GetAxisRaw("Dash") == 0)
+			_LTriggerInUse = false;
 
 		if (Input.GetButtonDown("Jump")) 
 		{
 			_jumpButtonPressed = true;		
-			//_jumpButtonReleased = false;
-
-			if(_controller.CanJump)
-				Jump ();
+			_jumpButtonReleased = false;
+			//if(_controller.CanJump)
+			Jump ();
 		} 
 
 		if ( Input.GetButtonUp("Jump") )
-		{
-			_jumpButtonPressed=false;
-			//_jumpButtonReleased=true;
-		}
+			JumpStop();
+
 
 		if(Input.GetButtonDown("Fire1"))
 		{
-			//FireProjectile();
+//			FireProjectile();
 		}
-
 		if (Input.GetButton("Sprint"))		
 			SprintStart();
 
@@ -569,32 +603,15 @@ public class Player : MonoBehaviour, ITakeDamage
 			ToggleGodMode();		
 	}
 
-	private void FireProjectile()
-	{
-		if (_canFireIn > 0)
-			// we can't fire anything at this point
-			return;
-
-		var direction = isFacingRight ? Vector2.right : -Vector2.right;
-
-		// Instantiate the projectile at our determined position
-		var projectile = (Projectile)Instantiate(Projectile, ProjectileFireLocation.position, ProjectileFireLocation.rotation);
-
-		// Intialize the projectile (therefore calling the functions from the Projectile class
-		projectile.Initialize(gameObject, direction, _controller.Velocity);
-
-		// Reset the FireRate counter
-		_canFireIn = FireRate;
-
-		AudioSource.PlayClipAtPoint(PlayerShootSound, transform.position);
-	}
-
 	//==COROUTINES==================================================
 	#region Coroutines
 	private IEnumerator BlinkFromDamage()
 	{
 		Invincible = true;
 		var meshes = gameObject.GetComponentsInChildren<MeshRenderer>();
+		Physics2D.IgnoreLayerCollision(12,13, true);
+		Physics2D.IgnoreLayerCollision(12,11, true);
+
 		for (var i = 0; i <= 3; i ++)
 		{
 			foreach (MeshRenderer mesh in meshes)
@@ -607,6 +624,9 @@ public class Player : MonoBehaviour, ITakeDamage
 
 			yield return new WaitForSeconds(0.05f);
 		}
+
+		Physics2D.IgnoreLayerCollision(12,13, false);
+		Physics2D.IgnoreLayerCollision(12,11, false);
 		Invincible = false;
 	}
 
@@ -720,6 +740,15 @@ public class Player : MonoBehaviour, ITakeDamage
 		{
 			_controller.Parameters.generalMovement.Gravity = 0;
 		}
+	}
+
+	public float GetGravity()
+	{
+		if(_controller != null)
+			return _controller.Parameters.generalMovement.Gravity;
+		else 
+			return Physics2D.gravity.y;
+	
 	}
 
 	public void ResetInput()
