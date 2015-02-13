@@ -29,6 +29,7 @@ public class ControllerState2D {
 	public bool IsCollidingWithLadder			{get;set;}
 	public bool IsCollidingLadderTop			{get;set;}
 	public bool IsFalling 						{get;set;}
+	public bool WasGroundedLastFrame			{get;set;}
 
 	public bool WallJump 						{get;set;}
 	public bool WallSlideRight					{get;set;}
@@ -40,6 +41,20 @@ public class ControllerState2D {
 	public bool AbleToStand 					{get;set;}
 	public bool AbleToFire						{get;set;}
 	public bool AbleToDoubleJump 				{get;set;}
+
+	public bool SprintEnabled					{get;set;}
+	public bool CrouchEnabled					{get;set;}
+	public bool SlideToCrouchEnabled 			{get;set;}
+	public bool JumpEnabled 					{get;set;}
+	public bool DashEnabled						{get;set;}
+	public bool SlamEnabled 					{get;set;}
+	public bool DoubleJumpEnabled				{get;set;}
+	public bool CrouchDoubleJumpEnabled			{get;set;}
+	public bool WallJumpEnabled					{get;set;}
+	public bool DoubleJumpOffWallEnabled		{get;set;}
+
+
+
 
 	public bool EdgeDetectedRight 				{get;set;}
 	public bool EdgeDetectedLeft 				{get;set;}
@@ -67,6 +82,25 @@ public class ControllerState2D {
 		AbleToStand =	 	  true;			
 
 		SlopeAngle = 0; 
+	}
+
+	public void Initialize()
+	{
+		WallJump = false;
+		CanMoveFreely = true;
+		AbleToStand = true;
+		IsDiving = false;
+		IsStomping = false;
+		IsSlidingToCrouch  = false;
+		IsFalling = false;
+		IsJumpPadTraveling = false;
+		IsCollidingWithLadder= false;
+		IsClimbingLadder = false;
+		IsCollidingLadderTop = false;
+		IsBouncingOnJumpPad = false;
+		JumpPadDisabledControlsTimer = 0.02f;
+
+		WasGroundedLastFrame = true;
 	}
 
 	// Create a collision-state to string member
