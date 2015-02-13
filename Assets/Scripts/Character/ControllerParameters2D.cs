@@ -46,7 +46,6 @@ public class ControllerParameters2D
 	[Serializable]
 	public class JumpProperties 
 	{	
-		public bool canJump = 					true;
 		public bool canDoubleJump = 			true;
 		public bool canDoubleJumpWhileCrouched= true;
 		public bool canWallJump = 			    true;
@@ -54,10 +53,6 @@ public class ControllerParameters2D
 		public JumpBehaviour JumpRestrictions;				// Use our enum 
 		public float JumpFrequency =		    .25f;		// Limit how often the player can jump
 		public float JumpMagnitude = 			 55f;		// How much force added to y velocity when you jump
-
-		[Tooltip ("How many frames the player can still jump for after walking off a ledge")]
-		public int JumpLenienceFrames =			   4;
-
 		public float doubleJumpMagnitude =		 40f;		// How much force for the double jump
 		public float CrouchJumpHeight = 		  5f;
 
@@ -69,9 +64,6 @@ public class ControllerParameters2D
 
 		[Tooltip ("Multiplies jump magnitude when wall jumping")]
 		public float WallJumpOut = 			    0.8f;
-
-
-
 	}
 
 	[Serializable]

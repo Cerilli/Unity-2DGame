@@ -73,18 +73,18 @@
      <Compile Include="Assets\Scripts\Game Management\StartScreen.cs" />
      <Compile Include="Assets\Scripts\Gui\GameHud.cs" />
      <Compile Include="Assets\Scripts\Gui\HealthBar.cs" />
-     <Compile Include="Assets\Scripts\Helpers\AutoDestroyParticleSystem.cs" />
-     <Compile Include="Assets\Scripts\Helpers\DetectStomp.cs" />
-     <Compile Include="Assets\Scripts\Helpers\FollowObject.cs" />
-     <Compile Include="Assets\Scripts\Helpers\FollowPath.cs" />
-     <Compile Include="Assets\Scripts\Helpers\InstaKill.cs" />
-     <Compile Include="Assets\Scripts\Helpers\PathDefinition.cs" />
      <Compile Include="Assets\Scripts\Pickups\GiveHealth.cs" />
      <Compile Include="Assets\Scripts\Pickups\Point.cs" />
      <Compile Include="Assets\Scripts\Projectiles\PathedProjectile.cs" />
      <Compile Include="Assets\Scripts\Projectiles\PathedProjectileSpawner.cs" />
      <Compile Include="Assets\Scripts\Projectiles\Projectile.cs" />
      <Compile Include="Assets\Scripts\Projectiles\SimpleProjectile.cs" />
+     <Compile Include="Assets\Scripts\Tools\AutoDestroyParticleSystem.cs" />
+     <Compile Include="Assets\Scripts\Tools\DetectStomp.cs" />
+     <Compile Include="Assets\Scripts\Tools\FollowObject.cs" />
+     <Compile Include="Assets\Scripts\Tools\FollowPath.cs" />
+     <Compile Include="Assets\Scripts\Tools\InstaKill.cs" />
+     <Compile Include="Assets\Scripts\Tools\PathDefinition.cs" />
  <Reference Include="UnityEngine.UI">
  <HintPath>C:/Program Files (x86)/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/4.6.1/UnityEngine.UI.dll</HintPath>
  </Reference>
