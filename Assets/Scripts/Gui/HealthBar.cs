@@ -16,7 +16,7 @@ public class HealthBar : MonoBehaviour
 
 	public void Update () 
 	{
-		var healthPercent = Player.Health / (float)Player.MaxHealth; 
+		var healthPercent = Player.Health / (float)Player.BehaviorParameters.MaxHealth; 
 
 		ForegroundSprite.localScale = new Vector3(healthPercent, 1, 1);
 		ForegroundRenderer.color = Color.Lerp(MaxHealthColor, MinHealthColor, healthPercent);

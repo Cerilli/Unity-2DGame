@@ -16,7 +16,7 @@ public class Checkpoint : MonoBehaviour
 	{
 		// this will be executed of the course of multiple frames. If we don't do this, the LevelManager's bonus
 		// will have been reset and the bonus displayed will not be accurate
-		StartCoroutine(PlayerHitCheckpointCo(LevelManager.Instance.CurrentTimeBonus));
+		//StartCoroutine(PlayerHitCheckpointCo(LevelManager.Instance.CurrentTimeBonus));
 	}
 
 	private IEnumerator PlayerHitCheckpointCo(int bonus)

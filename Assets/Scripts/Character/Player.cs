@@ -6,21 +6,19 @@ public class Player : MonoBehaviour, ITakeDamage
 	#region Variables
 	[HideInInspector]
 	public bool isFacingRight;
-	private CharacterController2D	_controller; 								
-	public CameraController 		cameraController;
-	private float 					_normalizedHorizontalSpeed;// Will either be -1 or 1, depending on whether the player is moving left or right
+	private CharacterController2D	_controller;
+    public CharacterPermissions    Permissions;
+    public ControllerBehaviorParameters2D DefaultBehaviorParameters;
+    public ControllerBehaviorParameters2D BehaviorParameters { get { return _overrideBehaviorParameters ?? DefaultBehaviorParameters; } }
+    private ControllerBehaviorParameters2D _overrideBehaviorParameters;
 
 	[HideInInspector]
-	public float 		MovementSpeed = 10;// Default speed of the player
-	public int 			MaxHealth =    100;
-	public GameObject 	OuchEffect;
-	public Projectile 	Projectile; 
-	public float 		FireRate;
-	public Transform 	ProjectileFireLocation;
+	public float 		MovementSpeed = 10;// Default speed of the player	
 	public int 			Health 	{get; private set;}
 	public bool 		IsDead 	{get; private set;}
 
-	private float		_originalGravity;
+    private float       _normalizedHorizontalSpeed;// Will either be -1 or 1, depending on whether the player is moving left or right
+    private float		_originalGravity;
 	private float		_originalGroundAccel;
 	private float 		_originalAirAccel;
 	private float 		_canFireIn;
@@ -32,32 +30,61 @@ public class Player : MonoBehaviour, ITakeDamage
 	private float 		_boostForce;
 	private bool 		_LTriggerInUse = false;
 
-	public bool 	Invincible;
+    public bool JumpAllowed
+    {
+        get
+        {
+            if (BehaviorParameters.jumpProperties.JumpRestrictions == ControllerBehaviorParameters2D.JumpBehaviour.CanJumpAnywhere)
+                return true;
+            if (BehaviorParameters.jumpProperties.JumpRestrictions == ControllerBehaviorParameters2D.JumpBehaviour.CanJumpOnGround)
+                if (_controller.State.IsGrounded || _controller.State.IsWallSliding || !_controller.State.IsDoubleJumping)
+                    return true;
+                else
+                    return false;
+            return false;
+        }
+    }
+    
+    public bool 	Invincible;
 	public bool 	doHandleInput =	 true;
 
-	public AudioClip PlayerHitSound;
-	public AudioClip PlayerShootSound;
-	public AudioClip PlayerHealthSound;
+    public CameraController cameraController;
+    
+    // Hiding these for now to reduce clutter because I'm not using them
+    [HideInInspector]
+    public float FireRate;
+    [HideInInspector]
+    public Transform ProjectileFireLocation;
+    [HideInInspector]
+    public GameObject OuchEffect;
+    [HideInInspector]
+    public Projectile Projectile;
+    [HideInInspector]
+    public AudioClip PlayerHitSound;
+    [HideInInspector]
+    public AudioClip PlayerShootSound;
+    [HideInInspector]
+    public AudioClip PlayerHealthSound;
 	#endregion
 
 	public void Awake()
 	{
 		_controller = GetComponent<CharacterController2D> ();
-		Health = MaxHealth; 
-		Physics2D.gravity = new Vector2(0, _controller.Parameters.generalMovement.Gravity);
+		Health = BehaviorParameters.MaxHealth; 
+		Physics2D.gravity = new Vector2(0, _controller.Parameters.Gravity);
 	}
 
 	public void Start()
 	{
 		isFacingRight = transform.localScale.x > 0; // if we are flipped, the localscale.x will be less than one, so we'll know we aren't facing right
-		MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
+		MovementSpeed = BehaviorParameters.generalMovement.WalkSpeed;
 
-		_originalGravity = _controller.Parameters.generalMovement.Gravity;
-		_originalGroundAccel = _controller.Parameters.generalMovement.AccelerationOnGround;
-		_originalAirAccel = _controller.Parameters.generalMovement.AccelerationInAir;
-		_wallDropTimerReset = _controller.Parameters.jumpProperties.wallDropTimer;
-		_jumpLenienceFramesReset = _controller.Parameters.jumpProperties.JumpLenienceFrames;
-		_boostForce = _controller.Parameters.dashProperties.DashForce;
+		_originalGravity = _controller.Parameters.Gravity;
+		_originalGroundAccel = _controller.Parameters.AccelerationOnGround;
+		_originalAirAccel = _controller.Parameters.AccelerationInAir;
+		_wallDropTimerReset = BehaviorParameters.jumpProperties.wallDropTimer;
+		_jumpLenienceFramesReset = BehaviorParameters.jumpProperties.JumpLenienceFrames;
+		_boostForce = BehaviorParameters.dashProperties.DashForce;
 
 		_controller.State.Initialize();
 
@@ -93,13 +120,13 @@ public class Player : MonoBehaviour, ITakeDamage
 			   && _controller.State.IsGrounded) || _controller.State.IsWallSliding )
 				_controller.State.IsJumping = false;
 
-			if(_controller.State.IsGrounded && _controller.Parameters.permissions.doubleJumpEnabled)
+			if(_controller.State.IsGrounded && Permissions.doubleJumpEnabled)
 				_controller.State.IsDoubleJumping = false;
 				
 			// If the user releases the jump button and the player has reached their min jump height, stop moving up
-			if(_controller.State.IsJumping && _jumpButtonReleased && _controller.Velocity.y > _controller.Parameters.jumpProperties.MinJumpMagnitude)
+			if(_controller.State.IsJumping && _jumpButtonReleased && _controller.Velocity.y > BehaviorParameters.jumpProperties.MinJumpMagnitude)
 			{
-				_controller.SetVerticalForce(_controller.Parameters.jumpProperties.MinJumpMagnitude);
+				_controller.SetVerticalForce(BehaviorParameters.jumpProperties.MinJumpMagnitude);
 				_jumpButtonReleased = false;
 			}
 
@@ -134,7 +161,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		if(!_controller.State.CanMoveFreely)
 			return;
 
-		if(_controller.State.IsCrouching && !_controller.Parameters.permissions.crouchMovementEnabled)
+		if(_controller.State.IsCrouching && !Permissions.crouchMovementEnabled)
 		{
 			_controller.SetHorizontalForce(0);
 			return;
@@ -142,8 +169,8 @@ public class Player : MonoBehaviour, ITakeDamage
 		
 		// Get the desired acceleration
 		var movementFactor = 
-			_controller.State.IsGrounded ? _controller.Parameters.generalMovement.AccelerationOnGround :
-										   _controller.Parameters.generalMovement.AccelerationInAir;
+			_controller.State.IsGrounded ? _controller.Parameters.AccelerationOnGround :
+										   _controller.Parameters.AccelerationInAir;
 
 		// Every frame will set the x component of the player's velocity to a linear interp between the max speed and current velocity, 
 		// using the movement factor (multiplied by deltatime) as the value to interp between		
@@ -172,7 +199,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			_controller.State.IsCrouching = false;
 
 			if (!_controller.State.IsSprinting)					
-				MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
+				MovementSpeed = BehaviorParameters.generalMovement.WalkSpeed;
 		}
 
 		// Jump lenience frames. Gives the player a small buffer where they can still jump
@@ -181,17 +208,17 @@ public class Player : MonoBehaviour, ITakeDamage
 		 	&& _controller.State.WasGroundedLastFrame
 		   	&& !_controller.State.IsJumping)
 		{
-			if(_controller.Parameters.jumpProperties.JumpLenienceFrames >0)
-				_controller.Parameters.jumpProperties.JumpLenienceFrames -= 1;
+			if(BehaviorParameters.jumpProperties.JumpLenienceFrames >0)
+				BehaviorParameters.jumpProperties.JumpLenienceFrames -= 1;
 		}
 
-		if(_controller.Parameters.jumpProperties.JumpLenienceFrames < _jumpLenienceFramesReset
-		   && _controller.Parameters.jumpProperties.JumpLenienceFrames > 0)
-			_controller.Parameters.jumpProperties.JumpLenienceFrames -= 1;
+		if(BehaviorParameters.jumpProperties.JumpLenienceFrames < _jumpLenienceFramesReset
+		   && BehaviorParameters.jumpProperties.JumpLenienceFrames > 0)
+			BehaviorParameters.jumpProperties.JumpLenienceFrames -= 1;
 
 		if((_controller.State.IsGrounded || _controller.State.IsJumping)
-		   &&_controller.Parameters.jumpProperties.JumpLenienceFrames != _jumpLenienceFramesReset)
-			_controller.Parameters.jumpProperties.JumpLenienceFrames = _jumpLenienceFramesReset;
+		   &&BehaviorParameters.jumpProperties.JumpLenienceFrames != _jumpLenienceFramesReset)
+			BehaviorParameters.jumpProperties.JumpLenienceFrames = _jumpLenienceFramesReset;
 
 
 
@@ -201,7 +228,7 @@ public class Player : MonoBehaviour, ITakeDamage
 	#region Actions
 	public void SprintStart()
 	{
-		if (!_controller.Parameters.permissions.sprintEnabled)
+		if (!Permissions.sprintEnabled)
 			return;
 
 		if(!_controller.State.CanMoveFreely)
@@ -209,28 +236,28 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		if(_controller.State.IsGrounded && !_controller.State.IsCrouching && !_controller.State.IsWallSliding )
 		{
-			MovementSpeed = _controller.Parameters.generalMovement.SprintSpeed;
+			MovementSpeed = BehaviorParameters.generalMovement.SprintSpeed;
 			_controller.State.IsSprinting = true;				
 		}
 	}
 
 	public void SprintStop()
 	{
-		MovementSpeed = _controller.Parameters.generalMovement.WalkSpeed;
+		MovementSpeed = BehaviorParameters.generalMovement.WalkSpeed;
 		_controller.State.IsSprinting = false;
 	}
 
 	public void Crouch()
 	{
-		if(_controller.Parameters.permissions.crouchEnabled)
+		if(Permissions.crouchEnabled)
 		{
 			_controller.CrouchResize();
 			_controller.State.IsCrouching = true;
 		
-			if(_controller.Parameters.crouchProperties.SlideToCrouch)
+			if(BehaviorParameters.crouchProperties.SlideToCrouch)
 				StartCoroutine(SlideToCrouch());		
 			else
-				MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;			
+				MovementSpeed = BehaviorParameters.crouchProperties.CrouchMoveSpeed;			
 		}
 	}
 
@@ -242,7 +269,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		var yDir = YInputDir();
 		// If the user presses the dash button and is not aiming down
-		if (yDir >-0.8 && _controller.Parameters.permissions.dashEnabled) 
+		if (yDir >-0.8 && Permissions.dashEnabled) 
 		{	
 			if (_controller.State.AbleToDash
 			    && (!_controller.State.IsCollidingLeft || !_controller.State.IsCollidingRight) 
@@ -251,23 +278,23 @@ public class Player : MonoBehaviour, ITakeDamage
 				_controller.State.IsDashing=true;				
 				
 				if (isFacingRight) { _dashDirection=1f; } else { _dashDirection = -1f; }
-				_boostForce=_dashDirection*_controller.Parameters.dashProperties.DashForce;
+				_boostForce=_dashDirection*BehaviorParameters.dashProperties.DashForce;
 				_controller.State.AbleToDash = false;
-				_controller.Parameters.generalMovement.AccelerationInAir = 300f;
-				_controller.Parameters.generalMovement.AccelerationOnGround = 300f;
-				StartCoroutine( Boost(_controller.Parameters.dashProperties.DashDuration,_boostForce,0,"dash") );
+				_controller.Parameters.AccelerationInAir = 300f;
+				_controller.Parameters.AccelerationOnGround = 300f;
+				StartCoroutine( Boost(BehaviorParameters.dashProperties.DashDuration,_boostForce,0,"dash") );
 			}			
 		}
 		
-		if (yDir<-0.8 && !_controller.State.IsGrounded && _controller.Parameters.permissions.slamEnabled) 
+		if (yDir<-0.8 && !_controller.State.IsGrounded && Permissions.slamEnabled) 
 		{
 			StartCoroutine(Dive());
 		}	
 	}
 
 	public void Jump()
-	{	
-		if(_controller.State.IsDoubleJumping || !_controller.Parameters.permissions.jumpEnabled)
+	{
+        if (_controller.State.IsDoubleJumping || !Permissions.jumpEnabled || !JumpAllowed)
 			return;
 
 		// Drop through one way platforms if crouch jump while standing on one
@@ -280,17 +307,17 @@ public class Player : MonoBehaviour, ITakeDamage
 			}
 		}
 
-		var JumpHeight = _controller.Parameters.jumpProperties.JumpMagnitude; 
+		var JumpHeight = BehaviorParameters.jumpProperties.JumpMagnitude; 
 		
 		if (_controller.State.IsWallSliding)
 		{
 			_controller.State.HasWallJumped = true;
 			// Jump off the wall depending on which side the wall is on, using WallJumpOut to affect x velocity off wall
 			_controller.SetForce (new Vector2 (_controller.State.WallSlideLeft ? 
-			                                     JumpHeight * _controller.Parameters.jumpProperties.WallJumpOut : 
-			                                    (JumpHeight * _controller.Parameters.jumpProperties.WallJumpOut) * -1, JumpHeight));
+			                                     JumpHeight * BehaviorParameters.jumpProperties.WallJumpOut : 
+			                                    (JumpHeight * BehaviorParameters.jumpProperties.WallJumpOut) * -1, JumpHeight));
 			
-			if(_controller.Parameters.permissions.doubleJumpOffWallEnabled)
+			if(Permissions.doubleJumpOffWallEnabled)
 				_controller.State.IsDoubleJumping = false;
 			else 
 				_controller.State.IsDoubleJumping = true;
@@ -310,17 +337,17 @@ public class Player : MonoBehaviour, ITakeDamage
 		
 		if(!_controller.State.IsDoubleJumping && !_controller.State.IsGrounded)		  	
 		{
-			if(_controller.Parameters.jumpProperties.JumpLenienceFrames < _jumpLenienceFramesReset
-			   && _controller.Parameters.jumpProperties.JumpLenienceFrames != 0)
+			if(BehaviorParameters.jumpProperties.JumpLenienceFrames < _jumpLenienceFramesReset
+			   && BehaviorParameters.jumpProperties.JumpLenienceFrames != 0)
 			{}
 			else
 			{
 				_controller.State.IsDoubleJumping = true;		
-				JumpHeight = _controller.Parameters.jumpProperties.doubleJumpMagnitude;
+				JumpHeight = BehaviorParameters.jumpProperties.doubleJumpMagnitude;
 			}
 		}
 
-		if(_controller.State.IsDoubleJumping && !_controller.Parameters.permissions.doubleJumpEnabled)
+		if(_controller.State.IsDoubleJumping && !Permissions.doubleJumpEnabled)
 		{
 			_controller.State.IsDoubleJumping = false;
 			return;	
@@ -328,13 +355,13 @@ public class Player : MonoBehaviour, ITakeDamage
 		
 		if (_controller.State.IsCrouching)
 		{	
-			if (_controller.State.IsDoubleJumping && !_controller.Parameters.permissions.doubleJumpWhileCrouchedEnabled)
+			if (_controller.State.IsDoubleJumping && !Permissions.doubleJumpWhileCrouchedEnabled)
 				return;			
-			JumpHeight = _controller.Parameters.jumpProperties.CrouchJumpHeight;
+			JumpHeight = BehaviorParameters.jumpProperties.CrouchJumpHeight;
 		}
 		
 		// "_jumpIn" is used to determine if a player can jump or not
-		_controller.SetJumpIn(_controller.Parameters.jumpProperties.JumpFrequency);
+		//_controller.SetJumpIn(BehaviorParameters.jumpProperties.JumpFrequency);
 
 		// Jump
 		_controller.State.IsClimbingLadder=false;
@@ -343,7 +370,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_jumpButtonPressed=true;
 		_jumpButtonReleased=false;		
 
-		_controller.SetVerticalForce(Mathf.Sqrt( JumpHeight/2 * _controller.Parameters.generalMovement.Gravity ));
+		_controller.SetVerticalForce(Mathf.Sqrt( JumpHeight/2 * _controller.Parameters.Gravity ));
 
 	}
 
@@ -360,10 +387,10 @@ public class Player : MonoBehaviour, ITakeDamage
 		// Set WallSliding to true if we're not grounded, but colliding on either side
 		if (!_controller.State.IsGrounded 
 		    && (_controller.State.IsCollidingLeft || _controller.State.IsCollidingRight) 
-		    && _controller.Parameters.permissions.wallJumpEnabled)
+		    && Permissions.wallJumpEnabled)
 		{
 			_controller.State.IsWallSliding = true;
-			MovementSpeed =  _controller.Parameters.generalMovement.WalkSpeed;
+			MovementSpeed =  BehaviorParameters.generalMovement.WalkSpeed;
 			if (_controller.State.IsCollidingLeft)
 			{	
 				_controller.State.WallSlideLeft = true;
@@ -378,18 +405,18 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		// If we're pushing against the wall, keep the wallDropTimer at its default
 		if ( ( xDir == -1 && _controller.State.WallSlideLeft) || (xDir == 1 && _controller.State.WallSlideRight) )
-			_controller.Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;
+			BehaviorParameters.jumpProperties.wallDropTimer = _wallDropTimerReset;
 		
 		// If we're not pushing against the wall, start counting down until we drop off the wall
 		else if ((xDir != -1 && _controller.State.WallSlideLeft) || (xDir != 1 && _controller.State.WallSlideRight))
-			_controller.Parameters.jumpProperties.wallDropTimer -= Time.deltaTime;
+			BehaviorParameters.jumpProperties.wallDropTimer -= Time.deltaTime;
 		
 		// Turn wall jump off if we slide down a wall to the ground, or are no longer colliding with a wall
 		if (_controller.State.IsGrounded && _controller.State.IsWallSliding)
 			ResetWallJump ();
 		
 		// Stick to the wall if we are sliding and having been pushing against the wall 
-		if ( _controller.State.IsWallSliding && _controller.Parameters.jumpProperties.wallDropTimer > 0)
+		if ( _controller.State.IsWallSliding && BehaviorParameters.jumpProperties.wallDropTimer > 0)
 			_controller.SetHorizontalForce(0);
 		
 		// Reset State.HasWallJumped after landing from a wall jump
@@ -420,7 +447,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			{
 				_controller.State.AbleToFire=false;
 				GravityActive(false);
-				_controller.SetVerticalForce(yDir * _controller.Parameters.generalMovement.LadderClimbSpeed);
+				_controller.SetVerticalForce(yDir * BehaviorParameters.generalMovement.LadderClimbSpeed);
 				_controller.State.LadderClimbingSpeed=Mathf.Abs(yDir);				
 			}
 			
@@ -506,13 +533,13 @@ public class Player : MonoBehaviour, ITakeDamage
 		GetComponent<Collider2D>().enabled = true;
 		_controller.HandleCollisions = true;
 		_controller.State.IsSprinting = false;
-		_controller.State.AbleToDash = _controller.Parameters.permissions.dashEnabled;
+		_controller.State.AbleToDash = Permissions.dashEnabled;
 		_controller.ResetParameters();
 
 		cameraController.ResetCamera();
 
 		//Reset Health
-		Health = MaxHealth;
+		Health = BehaviorParameters.MaxHealth;
 
 		transform.position = spawnPoint.position;
 	}
@@ -543,8 +570,8 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		FloatingText.Show(string.Format("+{0}", health), "PlayerGotHealthText", new FromWorldPointTextPositioner(Camera.main, transform.position, 2f, 60f));
 	
-		// Add health, as long as it isn't more than MaxHealth
-		Health = Mathf.Min (Health + health, MaxHealth);
+		// Add health, as long as it isn't more than BehaviorParameters.MaxHealth
+		Health = Mathf.Min (Health + health, BehaviorParameters.MaxHealth);
 	}
 
 	private void HandleInput()
@@ -581,7 +608,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		{
 			_jumpButtonPressed = true;		
 			_jumpButtonReleased = false;
-			if(_controller.Parameters.permissions.jumpEnabled)
+			if(Permissions.jumpEnabled)
 			Jump ();
 		} 
 
@@ -602,6 +629,27 @@ public class Player : MonoBehaviour, ITakeDamage
 		if (Input.GetKeyDown(KeyCode.Joystick1Button8) && Input.GetKeyDown(KeyCode.Joystick1Button9))
 			ToggleGodMode();		
 	}
+
+    public void OnTriggerEnter2D(Collider2D collider)
+    {
+
+        var parameters = collider.gameObject.GetComponent<ControllerPhysicsVolume2D>();
+        if (parameters == null)
+            return;
+        // if the other collider has behavior parameters, we override ours with them.
+        _overrideBehaviorParameters = parameters.BehaviorParameters;
+    }
+
+    public void OnTriggerExit2D(Collider2D collider)
+    {
+
+        var parameters = collider.gameObject.GetComponent<ControllerPhysicsVolume2D>();
+        if (parameters == null)
+            return;
+
+        // if the other collider had behavior parameters, we reset ours
+        _overrideBehaviorParameters = null;
+    }
 
 	//==COROUTINES==================================================
 	#region Coroutines
@@ -653,11 +701,11 @@ public class Player : MonoBehaviour, ITakeDamage
 		if (name=="dash")
 		{
 			_controller.State.IsDashing=false;
-			_controller.Parameters.generalMovement.AccelerationInAir = _originalAirAccel;
-			_controller.Parameters.generalMovement.AccelerationOnGround = _originalGroundAccel;
+			_controller.Parameters.AccelerationInAir = _originalAirAccel;
+			_controller.Parameters.AccelerationOnGround = _originalGroundAccel;
 			GravityActive(true);
 			//MoveModifierHorizontal=0f;
-			yield return new WaitForSeconds(_controller.Parameters.dashProperties.DashCooldown); //Cooldown time for being able to boost again, if you'd like.
+			yield return new WaitForSeconds(BehaviorParameters.dashProperties.DashCooldown); //Cooldown time for being able to boost again, if you'd like.
 			_controller.State.AbleToDash = true; //set back to true so that we can boost again.
 		}	
 		if (name=="wallJump")
@@ -678,7 +726,7 @@ public class Player : MonoBehaviour, ITakeDamage
 				_controller.State.IsStomping = false;
 				break;
 			}
-			_controller.SetVerticalForce(_controller.Parameters.generalMovement.Gravity*-_controller.Parameters.dashProperties.DownDashForce);
+			_controller.SetVerticalForce(_controller.Parameters.Gravity*-BehaviorParameters.dashProperties.DownDashForce);
 			yield return 0; //go to next frame
 		}
 		
@@ -694,27 +742,27 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		if(isFacingRight)
 		{
-			while ((_controller.Velocity.x -0.4f) > _controller.Parameters.crouchProperties.CrouchMoveSpeed )
+			while ((_controller.Velocity.x -0.4f) > BehaviorParameters.crouchProperties.CrouchMoveSpeed )
 			{
 				if(!_controller.State.IsCrouching)
 					break;
 
-				_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,_controller.Parameters.crouchProperties.CrouchMoveSpeed, .3f));
+				_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,BehaviorParameters.crouchProperties.CrouchMoveSpeed, .3f));
 				yield return 0;
 			}
 		}
 		if(!isFacingRight)
-			while ((_controller.Velocity.x +0.4f) < -_controller.Parameters.crouchProperties.CrouchMoveSpeed )
+			while ((_controller.Velocity.x +0.4f) < -BehaviorParameters.crouchProperties.CrouchMoveSpeed )
 		{
 			if(!_controller.State.IsCrouching)
 				break;
 			
-			_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,_controller.Parameters.crouchProperties.CrouchMoveSpeed, .3f));			
+			_controller.SetHorizontalForce(Mathf.MoveTowards(_controller.Velocity.x,BehaviorParameters.crouchProperties.CrouchMoveSpeed, .3f));			
 			yield return 0;
 		}
 
 		_controller.State.IsSlidingToCrouch = false;
-		MovementSpeed = _controller.Parameters.crouchProperties.CrouchMoveSpeed;
+		MovementSpeed = BehaviorParameters.crouchProperties.CrouchMoveSpeed;
 	}
 
 	#endregion
@@ -731,21 +779,21 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		if (state==true)
 		{
-			if (_controller.Parameters.generalMovement.Gravity==0)
+			if (_controller.Parameters.Gravity==0)
 			{
-				_controller.Parameters.generalMovement.Gravity = _originalGravity;
+				_controller.Parameters.Gravity = _originalGravity;
 			}
 		}
 		else
 		{
-			_controller.Parameters.generalMovement.Gravity = 0;
+			_controller.Parameters.Gravity = 0;
 		}
 	}
 
 	public float GetGravity()
 	{
 		if(_controller != null)
-			return _controller.Parameters.generalMovement.Gravity;
+			return _controller.Parameters.Gravity;
 		else 
 			return Physics2D.gravity.y;
 	
@@ -789,7 +837,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller.State.IsWallSliding = false;
 		_controller.State.WallSlideLeft = false;
 		_controller.State.WallSlideRight = false;
-		_controller.Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		
+		BehaviorParameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		
 	}
 
 	public void ToggleGodMode()

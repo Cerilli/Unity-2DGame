@@ -5,30 +5,16 @@ public class CharacterController2D : MonoBehaviour
 {
 	#region Variables
 	public ControllerParameters2D DefaultParameters; // allows us to edit the default parameters in the inspector
+    public ControllerParameters2D Parameters { get { return _overrideParameters ?? DefaultParameters; } }
+    private ControllerParameters2D _overrideParameters; // allows us to override the parameters of ControllerBehaviorParameters2D by setting this to whatever we want
 	public ControllerState2D State { get; private set; }
-	public Vector2 Velocity { get { return _velocity; } }
+	
+    public Vector2 Velocity { get { return _velocity; } }
 	public Vector3 PlatformVelocity { get; private set; }
-
-	public bool CanJump 	
-	{	get 
-		{	
-			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpAnywhere)
-				return _jumpIn <= 0;
-			if(Parameters.jumpProperties.JumpRestrictions == ControllerParameters2D.JumpBehaviour.CanJumpOnGround)
-				if(( State.IsGrounded || _groundDetected) || State.IsWallSliding )
-					return true;
-				else 
-					return false;
-			return false;
-		} 	
-	}
 	public bool HandleCollisions { get; set; }
-	public ControllerParameters2D Parameters { get { return _overrideParameters ?? DefaultParameters; } }	
 	// ?? is the null coalescing operator - same as saying 'if _overrideParmeters != null, return it, else return DefaultParameters'
 	// when you access the parameters through this property, it will return either the DefaultParameters, or the _overrideParameters
 	public GameObject StandingOn { get; private set; }
-	//public AnimationCurve slopeSpeedMultiplier = new AnimationCurve( new Keyframe( -90, -100f ), new Keyframe( 0, 1f ), new Keyframe( 90, 100.0f) );
-
 	
 	public LayerMask PlatformMask= 0; 	
 	[SerializeField]
@@ -37,7 +23,7 @@ public class CharacterController2D : MonoBehaviour
 	private Transform _transform;
 	private Vector3 _localScale;
 	private Vector2 _velocity;
-	private ControllerParameters2D _overrideParameters; // allows us to override the parameters of ControllerParameters2D by setting this to whatever we want
+	
 
 	// Character Collider ==================
 	private BoxCollider2D _boxCollider;
@@ -48,7 +34,6 @@ public class CharacterController2D : MonoBehaviour
 	private const int TotalVerticalRays = 4;
 	// =====================================
 	private static readonly float SlopeLimitTangent = Mathf.Tan(75f * Mathf.Deg2Rad); // will be used when moving up and down slopes is implemented
-	private float _jumpIn;
 	private GameObject _lastStandingOn;
 	private Vector3
 		_activeGlobalPlatformPoint,
@@ -60,7 +45,6 @@ public class CharacterController2D : MonoBehaviour
 	private float
 				_verticalDistanceBetweenRays,
 				_horizontalDistanceBetweenRays;
-	private bool _groundDetected;
 
 	#endregion
 
@@ -111,11 +95,9 @@ public class CharacterController2D : MonoBehaviour
 
 	public void LateUpdate()
 	{
-		State.WasGroundedLastFrame = State.IsCollidingBelow;
-
-		_jumpIn -= Time.deltaTime;
+		State.WasGroundedLastFrame = State.IsCollidingBelow;		
 		Move (Velocity * Time.deltaTime);
-		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;  // Gravity		
+		_velocity.y -= Parameters.Gravity * Time.deltaTime;  // Gravity		
 	}
 
 	private void Move(Vector2 deltaMovement)
@@ -139,7 +121,7 @@ public class CharacterController2D : MonoBehaviour
 
 			MoveVertically(ref deltaMovement); // we will always be moving vertically, as gravity will always be acting upon us
 
-			if (Parameters.generalMovement.DetectEdges)EdgeDetect(ref deltaMovement);
+			if (Parameters.DetectEdges)EdgeDetect(ref deltaMovement);
 
 			if(State.IsCrouching)
 				CanStand (deltaMovement.x);
@@ -158,28 +140,28 @@ public class CharacterController2D : MonoBehaviour
 						_velocity = deltaMovement / Time.deltaTime;
 
 		// Clamp velocities to the maximum as defined in our parameters
-		_velocity.x = Mathf.Min (_velocity.x, Parameters.generalMovement.MaxVelocity.x);
-		_velocity.y = Mathf.Min (_velocity.y, Parameters.generalMovement.MaxVelocity.y);
+		_velocity.x = Mathf.Min (_velocity.x, Parameters.MaxVelocity.x);
+		_velocity.y = Mathf.Min (_velocity.y, Parameters.MaxVelocity.y);
 
 		// ======== MOVE ADJUSTMENTS ============================
 		#region MOVE ADJUSTMENTS
 
 		// Max fall speed
-		//if (_velocity.y < Parameters.generalMovement.TerminalVelocity)
-		//				_velocity.y = Parameters.generalMovement.TerminalVelocity;
+		//if (_velocity.y < Parameters.TerminalVelocity)
+		//				_velocity.y = Parameters.TerminalVelocity;
 
 		// Also apply max velocity when we're going left (making _velocity.x a negative value)
-		if(_velocity.x < Parameters.generalMovement.MaxVelocity.x * -1 )	
-			_velocity.x = Parameters.generalMovement.MaxVelocity.x * -1;
+		if(_velocity.x < Parameters.MaxVelocity.x * -1 )	
+			_velocity.x = Parameters.MaxVelocity.x * -1;
 
 		// Have the player move slower on a wall
-		if ( State.IsWallSliding && Parameters.jumpProperties.wallDropTimer > 0)
+		if ( State.IsWallSliding && Parameters.wallDropTimer > 0)
 		{
 			// Ease out of vertical movement
 			if (_velocity.y > 0)
-				_velocity.y -= Parameters.jumpProperties.WallFriction * .01f;
+				_velocity.y -= Parameters.WallFriction * .01f;
 			else
-				_velocity.y *= Parameters.jumpProperties.WallFriction;
+				_velocity.y *= Parameters.WallFriction;
 		}
 
 		if (State.IsMovingUpSlope)
@@ -446,27 +428,24 @@ public class CharacterController2D : MonoBehaviour
 		var rayDistance = 2.0f;
 		var rayDirection = -Vector2.up;
 		var center = (_raycastBottomLeft.x + _raycastBottomRight.x) / 2;
-		var rayVector = new Vector2 (center + deltaMovement.x + Parameters.generalMovement.edgeDetectDistance, _raycastBottomLeft.y + deltaMovement.y);
+		var rayVector = new Vector2 (center + deltaMovement.x + Parameters.edgeDetectDistance, _raycastBottomLeft.y + deltaMovement.y);
 
 		for (var i = 0; i < 2; i++)
 		{
 			if (i == 1)
-				rayVector.x -= Parameters.generalMovement.edgeDetectDistance *2;
+				rayVector.x -= Parameters.edgeDetectDistance *2;
 			Debug.DrawRay (rayVector, rayDirection * rayDistance, Color.magenta);
 
 			var rayCastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, PlatformMask);
 
 			if(rayCastHit)
 			{
-				_groundDetected = true;
-
 				if(i == 0) State.EdgeDetectedRight = false;
 				if(i == 1) State.EdgeDetectedLeft = false;
 			}		
 
 			if(!rayCastHit)
 			{
-				_groundDetected = false;
 				if(i == 0) State.EdgeDetectedRight = true;
 				if(i == 1) State.EdgeDetectedLeft = true;				
 			}
@@ -504,7 +483,7 @@ public class CharacterController2D : MonoBehaviour
 
 		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
 		{
-			var slopeModifier = Parameters.generalMovement.slopeSpeedMultiplier.Evaluate( -angle );
+			var slopeModifier = Parameters.slopeSpeedMultiplier.Evaluate( -angle );
 			deltaMovement.x *= slopeModifier;
 		}
 		State.IsMovingDownSlope = true; // mark that we're moving down slope
@@ -519,7 +498,7 @@ public class CharacterController2D : MonoBehaviour
 						return false; // obvioulsy we don't want to move up 90 "slopes"
 
 		// if the slope is steeper than our limit, stop moving on x and return true
-		if (angle > Parameters.generalMovement.SlopeLimit)
+		if (angle > Parameters.SlopeLimit)
 		{
 			deltaMovement.x = 0;
 				return true;
@@ -533,7 +512,7 @@ public class CharacterController2D : MonoBehaviour
 		// Not sure that it's a good solution
 		if (angle < 45.0f && (deltaMovement.x < 0.3f && deltaMovement.x > -0.3f))
 		{
-			var slopeModifier = Parameters.generalMovement.slopeSpeedMultiplier.Evaluate( angle );		
+			var slopeModifier = Parameters.slopeSpeedMultiplier.Evaluate( angle );		
 			deltaMovement.x *= slopeModifier;
 		}
 	
@@ -586,7 +565,7 @@ public class CharacterController2D : MonoBehaviour
 			return;
 
 		// If our override parameters are set, we will use them
-		_overrideParameters = parameters.Parameters;
+		_overrideParameters = parameters.ControllerParameters;
 	}
 
 	// used for when player exits a special 2d space where the controls might vary
@@ -651,19 +630,13 @@ public class CharacterController2D : MonoBehaviour
 		State.IsWallSliding = false;
 		State.WallSlideLeft = false;
 		State.WallSlideRight = false;
-		//Parameters.jumpProperties.wallDropTimer = _wallDropTimerReset;		
+		//Parameters.wallDropTimer = _wallDropTimerReset;		
 	}
 
 	public void ResetParameters()
 	{
 		_overrideParameters = null;
 	}
-
-	public void SetJumpIn(float value)
-	{
-		_jumpIn = value;
-	}
-
 	#endregion
 
 }
