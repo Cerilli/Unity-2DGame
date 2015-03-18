@@ -50,8 +50,8 @@ public class CameraController : MonoBehaviour
 		_xSmoothReset = Smoothing.x;
 		_marginReset = Margin;
 		_followReset = CameraFollow.localPosition;
-		orthographicSizeAdjust = camera.orthographicSize; // ensure orthographic size is not set to 0
-		_orthographicSizeReset = camera.orthographicSize;
+		orthographicSizeAdjust = GetComponent<Camera>().orthographicSize; // ensure orthographic size is not set to 0
+		_orthographicSizeReset = GetComponent<Camera>().orthographicSize;
 
 		characterController = playerObject.GetComponent<CharacterController2D>();
 	}
@@ -118,14 +118,14 @@ public class CameraController : MonoBehaviour
 		}
 
 		//camera.orthographicSize = Mathf.Lerp(camera.orthographicSize, orthographicSizeAdjust, Time.deltaTime);
-		camera.orthographicSize = Mathf.SmoothStep(camera.orthographicSize, orthographicSizeAdjust, 0.1f);
-		var cameraHalfWidth = camera.orthographicSize * ((float)Screen.width / Screen.height);
+		GetComponent<Camera>().orthographicSize = Mathf.SmoothStep(GetComponent<Camera>().orthographicSize, orthographicSizeAdjust, 0.1f);
+		var cameraHalfWidth = GetComponent<Camera>().orthographicSize * ((float)Screen.width / Screen.height);
 
 		if(!ignoreBounds)
 		{
 
 			x = Mathf.Clamp(x, _min.x + cameraHalfWidth, _max.x - cameraHalfWidth);
-			y = Mathf.Clamp(y, _min.y + camera.orthographicSize, _max.y - camera.orthographicSize);
+			y = Mathf.Clamp(y, _min.y + GetComponent<Camera>().orthographicSize, _max.y - GetComponent<Camera>().orthographicSize);
 
 		}
 

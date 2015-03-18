@@ -8,7 +8,6 @@ public class ControllerState2D {
 	public bool IsCollidingRight 				{get;set;}
 	public bool IsCollidingLeft 				{get;set;}
 	public bool IsCollidingAbove				{get;set;}
-	public bool IsJumpCollidingAbove 			{get;set;}
 	public bool IsCollidingBelow 				{get;set;}
 	public bool IsMovingDownSlope 				{get;set;}
 	public bool IsMovingUpSlope 				{get;set;}
@@ -41,20 +40,6 @@ public class ControllerState2D {
 	public bool AbleToStand 					{get;set;}
 	public bool AbleToFire						{get;set;}
 	public bool AbleToDoubleJump 				{get;set;}
-
-	public bool SprintEnabled					{get;set;}
-	public bool CrouchEnabled					{get;set;}
-	public bool SlideToCrouchEnabled 			{get;set;}
-	public bool JumpEnabled 					{get;set;}
-	public bool DashEnabled						{get;set;}
-	public bool SlamEnabled 					{get;set;}
-	public bool DoubleJumpEnabled				{get;set;}
-	public bool CrouchDoubleJumpEnabled			{get;set;}
-	public bool WallJumpEnabled					{get;set;}
-	public bool DoubleJumpOffWallEnabled		{get;set;}
-
-
-
 
 	public bool EdgeDetectedRight 				{get;set;}
 	public bool EdgeDetectedLeft 				{get;set;}

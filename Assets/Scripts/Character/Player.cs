@@ -60,7 +60,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		_boostForce = _controller.Parameters.dashProperties.DashForce;
 
 		_controller.State.Initialize();
-		InitializeAbilities();
+
 	}
 
 	public void Update() 
@@ -88,27 +88,21 @@ public class Player : MonoBehaviour, ITakeDamage
 			}	
 
 			//Jumping Checks
-			if(_controller.State.IsBouncingOnJumpPad)
-				_controller.State.IsDoubleJumping = true;		
-			
 			if(_controller.State.IsJumping 
-			   && (!_controller.wasGroundedLastFrame 
+			   && (!_controller.State.WasGroundedLastFrame 
 			   && _controller.State.IsGrounded) || _controller.State.IsWallSliding )
 				_controller.State.IsJumping = false;
 
-			if(_controller.State.IsGrounded && _controller.Parameters.jumpProperties.canDoubleJump)
+			if(_controller.State.IsGrounded && _controller.Parameters.permissions.doubleJumpEnabled)
 				_controller.State.IsDoubleJumping = false;
 				
-			// If the user releases the jump button and the player is jumping up and enough time since the initial jump has passed, then stop jumping
-			if ( _controller.State.IsJumping 
-			    && (_controller.Velocity.y >(_controller.Parameters.generalMovement.Gravity * Time.deltaTime)) 
-			    && _jumpButtonReleased
-			    && !_jumpButtonPressed )
+			// If the user releases the jump button and the player has reached their min jump height, stop moving up
+			if(_controller.State.IsJumping && _jumpButtonReleased && _controller.Velocity.y > _controller.Parameters.jumpProperties.MinJumpMagnitude)
 			{
-				//_controller.State.IsJumping = false;
-				_jumpButtonReleased=false;			
-				_controller.SetVerticalForce(_controller.Velocity.y * 0.5f);
+				_controller.SetVerticalForce(_controller.Parameters.jumpProperties.MinJumpMagnitude);
+				_jumpButtonReleased = false;
 			}
+
 		}	
 		else
 			_controller.SetHorizontalForce(0);
@@ -116,15 +110,6 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	public void LateUpdate()
 	{
-		if(_controller.State.IsGrounded)
-		{
-			_controller.State.IsFalling = false;
-			_controller.State.IsDoubleJumping = false;
-		}
-
-		if (!_controller.State.IsGrounded && _controller.Velocity.y < _controller.Parameters.generalMovement.Gravity * Time.deltaTime)
-			_controller.State.IsFalling = true;
-
 
 		// Collide with one way platforms again after bouncing off direction jump pad
 		if (_controller.State.IsJumpPadTraveling && _controller.Velocity.y <= 0)
@@ -148,11 +133,17 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		if(!_controller.State.CanMoveFreely)
 			return;
+
+		if(_controller.State.IsCrouching && !_controller.Parameters.permissions.crouchMovementEnabled)
+		{
+			_controller.SetHorizontalForce(0);
+			return;
+		}
 		
 		// Get the desired acceleration
 		var movementFactor = 
 			_controller.State.IsGrounded ? _controller.Parameters.generalMovement.AccelerationOnGround :
-				_controller.Parameters.generalMovement.AccelerationInAir;
+										   _controller.Parameters.generalMovement.AccelerationInAir;
 
 		// Every frame will set the x component of the player's velocity to a linear interp between the max speed and current velocity, 
 		// using the movement factor (multiplied by deltatime) as the value to interp between		
@@ -189,22 +180,20 @@ public class Player : MonoBehaviour, ITakeDamage
 		if(_controller.State.IsFalling
 		 	&& _controller.State.WasGroundedLastFrame
 		   	&& !_controller.State.IsJumping)
-			_controller.Parameters.jumpProperties.
-				JumpLenienceFrames -= 1;
+		{
+			if(_controller.Parameters.jumpProperties.JumpLenienceFrames >0)
+				_controller.Parameters.jumpProperties.JumpLenienceFrames -= 1;
+		}
 
-		if(_controller.Parameters.jumpProperties.    JumpLenienceFrames < _jumpLenienceFramesReset
-		   && _controller.Parameters.jumpProperties. JumpLenienceFrames > 0)
+		if(_controller.Parameters.jumpProperties.JumpLenienceFrames < _jumpLenienceFramesReset
+		   && _controller.Parameters.jumpProperties.JumpLenienceFrames > 0)
 			_controller.Parameters.jumpProperties.JumpLenienceFrames -= 1;
 
 		if((_controller.State.IsGrounded || _controller.State.IsJumping)
 		   &&_controller.Parameters.jumpProperties.JumpLenienceFrames != _jumpLenienceFramesReset)
 			_controller.Parameters.jumpProperties.JumpLenienceFrames = _jumpLenienceFramesReset;
 
-		// Identify if we were grounded last frame
-		if(_controller.State.IsGrounded)
-			_controller.State.WasGroundedLastFrame = true;
-		if(!_controller.State.IsGrounded && _controller.State.WasGroundedLastFrame)
-			_controller.State.WasGroundedLastFrame = false;
+
 
 	}
 
@@ -212,7 +201,7 @@ public class Player : MonoBehaviour, ITakeDamage
 	#region Actions
 	public void SprintStart()
 	{
-		if (!_controller.Parameters.generalMovement.canSprint)
+		if (!_controller.Parameters.permissions.sprintEnabled)
 			return;
 
 		if(!_controller.State.CanMoveFreely)
@@ -233,7 +222,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	public void Crouch()
 	{
-		if(_controller.Parameters.crouchProperties.CanCrouch)
+		if(_controller.Parameters.permissions.crouchEnabled)
 		{
 			_controller.CrouchResize();
 			_controller.State.IsCrouching = true;
@@ -253,7 +242,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 		var yDir = YInputDir();
 		// If the user presses the dash button and is not aiming down
-		if (yDir >-0.8 && _controller.Parameters.dashProperties.canDash) 
+		if (yDir >-0.8 && _controller.Parameters.permissions.dashEnabled) 
 		{	
 			if (_controller.State.AbleToDash
 			    && (!_controller.State.IsCollidingLeft || !_controller.State.IsCollidingRight) 
@@ -270,7 +259,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			}			
 		}
 		
-		if (yDir<-0.8 && !_controller.State.IsGrounded && _controller.Parameters.dashProperties.canDownDash) 
+		if (yDir<-0.8 && !_controller.State.IsGrounded && _controller.Parameters.permissions.slamEnabled) 
 		{
 			StartCoroutine(Dive());
 		}	
@@ -278,7 +267,7 @@ public class Player : MonoBehaviour, ITakeDamage
 
 	public void Jump()
 	{	
-		if(_controller.State.IsDoubleJumping)
+		if(_controller.State.IsDoubleJumping || !_controller.Parameters.permissions.jumpEnabled)
 			return;
 
 		// Drop through one way platforms if crouch jump while standing on one
@@ -301,7 +290,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			                                     JumpHeight * _controller.Parameters.jumpProperties.WallJumpOut : 
 			                                    (JumpHeight * _controller.Parameters.jumpProperties.WallJumpOut) * -1, JumpHeight));
 			
-			if(_controller.Parameters.jumpProperties.canDoubleJumpOffWall)
+			if(_controller.Parameters.permissions.doubleJumpOffWallEnabled)
 				_controller.State.IsDoubleJumping = false;
 			else 
 				_controller.State.IsDoubleJumping = true;
@@ -331,12 +320,15 @@ public class Player : MonoBehaviour, ITakeDamage
 			}
 		}
 
-		if(_controller.State.IsDoubleJumping && !_controller.Parameters.jumpProperties.canDoubleJump)
-			return;		
+		if(_controller.State.IsDoubleJumping && !_controller.Parameters.permissions.doubleJumpEnabled)
+		{
+			_controller.State.IsDoubleJumping = false;
+			return;	
+		}
 		
 		if (_controller.State.IsCrouching)
 		{	
-			if (_controller.State.IsDoubleJumping && !_controller.Parameters.jumpProperties.canDoubleJumpWhileCrouched)
+			if (_controller.State.IsDoubleJumping && !_controller.Parameters.permissions.doubleJumpWhileCrouchedEnabled)
 				return;			
 			JumpHeight = _controller.Parameters.jumpProperties.CrouchJumpHeight;
 		}
@@ -349,8 +341,8 @@ public class Player : MonoBehaviour, ITakeDamage
 		_controller.State.IsJumping = true;
 		GravityActive(true);
 		_jumpButtonPressed=true;
-		_jumpButtonReleased=false;
-		
+		_jumpButtonReleased=false;		
+
 		_controller.SetVerticalForce(Mathf.Sqrt( JumpHeight/2 * _controller.Parameters.generalMovement.Gravity ));
 
 	}
@@ -368,7 +360,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		// Set WallSliding to true if we're not grounded, but colliding on either side
 		if (!_controller.State.IsGrounded 
 		    && (_controller.State.IsCollidingLeft || _controller.State.IsCollidingRight) 
-		    && _controller.Parameters.jumpProperties.canWallJump)
+		    && _controller.Parameters.permissions.wallJumpEnabled)
 		{
 			_controller.State.IsWallSliding = true;
 			MovementSpeed =  _controller.Parameters.generalMovement.WalkSpeed;
@@ -482,7 +474,7 @@ public class Player : MonoBehaviour, ITakeDamage
 	{
 		enabled = false;
 		_controller.enabled = false;
-		collider2D.enabled = false;
+		GetComponent<Collider2D>().enabled = false;
 	}
 
 	public void Kill()
@@ -493,7 +485,7 @@ public class Player : MonoBehaviour, ITakeDamage
 			_controller.HandleCollisions = false;
 
 			// Don't set off any triggers
-			collider2D.enabled = false;
+			GetComponent<Collider2D>().enabled = false;
 
 			IsDead = true;
 
@@ -511,10 +503,10 @@ public class Player : MonoBehaviour, ITakeDamage
 			Flip ();
 
 		IsDead = false;
-		collider2D.enabled = true;
+		GetComponent<Collider2D>().enabled = true;
 		_controller.HandleCollisions = true;
 		_controller.State.IsSprinting = false;
-		_controller.State.AbleToDash = _controller.Parameters.dashProperties.canDash;
+		_controller.State.AbleToDash = _controller.Parameters.permissions.dashEnabled;
 		_controller.ResetParameters();
 
 		cameraController.ResetCamera();
@@ -573,7 +565,7 @@ public class Player : MonoBehaviour, ITakeDamage
 		else 	
 			_normalizedHorizontalSpeed = 0;
 
-		if(Input.GetAxisRaw("Dash") != 0)
+		if( (Input.GetAxisRaw("Dash") != 0) || Input.GetButtonDown("Dash2"))
 		{
 			if(_LTriggerInUse == false)
 			{
@@ -582,14 +574,14 @@ public class Player : MonoBehaviour, ITakeDamage
 			}
 		}
 
-		if(Input.GetAxisRaw("Dash") == 0)
+		if( (Input.GetAxisRaw("Dash") == 0) || Input.GetButtonUp("Dash2"))
 			_LTriggerInUse = false;
 
 		if (Input.GetButtonDown("Jump")) 
 		{
 			_jumpButtonPressed = true;		
 			_jumpButtonReleased = false;
-			if(_controller.State.JumpEnabled)
+			if(_controller.Parameters.permissions.jumpEnabled)
 			Jump ();
 		} 
 
@@ -811,19 +803,6 @@ public class Player : MonoBehaviour, ITakeDamage
 		return _jumpButtonPressed;
 	}
 
-	private void InitializeAbilities()
-	{
-		_controller.State.SprintEnabled	= 		 _controller.Parameters.generalMovement.canSprint;				
-		_controller.State.CrouchEnabled	=		 _controller.Parameters.crouchProperties.CanCrouch;
-		_controller.State.SlideToCrouchEnabled = _controller.Parameters.crouchProperties.SlideToCrouch;			
-		_controller.State.JumpEnabled =			 _controller.Parameters.jumpProperties.canJump;
-		_controller.State.DashEnabled = 		 _controller.Parameters.dashProperties.canDash;
-		_controller.State.SlamEnabled = 		 _controller.Parameters.dashProperties.canDownDash;
-		_controller.State.DoubleJumpEnabled	=    _controller.Parameters.jumpProperties.canDoubleJump;
-		_controller.State.CrouchDoubleJumpEnabled = _controller.Parameters.jumpProperties.canDoubleJumpWhileCrouched;			
-		_controller.State.WallJumpEnabled =      _controller.Parameters.jumpProperties.canWallJump;
-		_controller.State.DoubleJumpOffWallEnabled = _controller.Parameters.jumpProperties.canDoubleJumpOffWall;
-	}
 	#endregion
 }
 

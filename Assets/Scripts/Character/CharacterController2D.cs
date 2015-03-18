@@ -8,7 +8,7 @@ public class CharacterController2D : MonoBehaviour
 	public ControllerState2D State { get; private set; }
 	public Vector2 Velocity { get { return _velocity; } }
 	public Vector3 PlatformVelocity { get; private set; }
-	public bool wasGroundedLastFrame {get; set;}
+
 	public bool CanJump 	
 	{	get 
 		{	
@@ -73,7 +73,7 @@ public class CharacterController2D : MonoBehaviour
 		_localScale = transform.localScale;
 		_boxCollider = GetComponent<BoxCollider2D> ();
 		boxColliderOriginalSize = _boxCollider.size;
-		boxColliderOriginalCenter = _boxCollider.center;
+		boxColliderOriginalCenter = _boxCollider.offset;
 		RecalculateDistanceBetweenRays ();
 	}
 
@@ -83,24 +83,36 @@ public class CharacterController2D : MonoBehaviour
 		_velocity += force;
 	}
 
+	public void AddHorizontalForce(float force)
+	{
+		_velocity.x += force;
+	}
+
+	public void AddVerticalForce(float force)
+	{
+		_velocity.y += force;
+	}
+
 	public void SetForce(Vector2 force)
 	{
 		_velocity = force;
 	}
 
-	public void SetHorizontalForce(float x)
+	public void SetHorizontalForce(float force)
 	{
-		_velocity.x = x;
+		_velocity.x = force;
 	}
 
-	public void SetVerticalForce(float y)
+	public void SetVerticalForce(float force)
 	{
-		_velocity.y = y; 
+		_velocity.y = force; 
 	}
 	#endregion
 
 	public void LateUpdate()
 	{
+		State.WasGroundedLastFrame = State.IsCollidingBelow;
+
 		_jumpIn -= Time.deltaTime;
 		Move (Velocity * Time.deltaTime);
 		_velocity.y -= Parameters.generalMovement.Gravity * Time.deltaTime;  // Gravity		
@@ -108,7 +120,6 @@ public class CharacterController2D : MonoBehaviour
 
 	private void Move(Vector2 deltaMovement)
 	{
-		wasGroundedLastFrame = State.IsCollidingBelow; // Keep track of if we were grounded
 		State.Reset (); // Reset state (set all bools to false and slope to zero)
 
 		if (HandleCollisions) 
@@ -116,7 +127,7 @@ public class CharacterController2D : MonoBehaviour
 			HandleMovingPlatforms();      // will handle moving platforms
 			CalculateRayOrigins();  // calculates where our rays will originate from
 
-			if (deltaMovement.y < 0 && wasGroundedLastFrame ) // if moving down/being affected by gravity AND grounded, means we are potentially on a slope
+			if (deltaMovement.y < 0 && State.WasGroundedLastFrame ) // if moving down/being affected by gravity AND grounded, means we are potentially on a slope
 				HandleVerticalSlope(ref deltaMovement); 
 				// pass in ref to deltaMovement because it only accepts a ref to Vector2, which needs to be that way because
 				// Vector2 is a value type, and HandleVerticalSlope may modify deltaMovement
@@ -261,7 +272,7 @@ public class CharacterController2D : MonoBehaviour
 		// then need raycast top left (for example), which is Position of player + Center - size (of x) -skin width
 
 		var size = new Vector2 (_boxCollider.size.x * Mathf.Abs (_localScale.x), _boxCollider.size.y * Mathf.Abs (_localScale.y)) /2;
-		var center = new Vector2 (_boxCollider.center.x * _localScale.x, _boxCollider.center.y * _localScale.y);
+		var center = new Vector2 (_boxCollider.offset.x * _localScale.x, _boxCollider.offset.y * _localScale.y);
 
 		// Place our raycast origins. Start at the center, move to one side, then up or down. Then move in a bit for Skin Width
 		_raycastTopLeft = _transform.position + new Vector3 (center.x - size.x + SkinWidth, center.y + size.y - SkinWidth);
@@ -314,7 +325,7 @@ public class CharacterController2D : MonoBehaviour
 
 				// if we are grounded we will include oneWayPlatforms only on the first ray (the bottom one). this will allow us to
 				// walk up sloped oneWayPlatforms
-				if( i == 0 && wasGroundedLastFrame )
+				if( i == 0 && State.WasGroundedLastFrame )
 					_raycastHit = Physics2D.Raycast(rayVector, rayDirection, rayDistance, PlatformMask);
 				else
 					_raycastHit = Physics2D.Raycast( rayVector, rayDirection, rayDistance, PlatformMask & ~oneWayPlatformMask );
@@ -358,6 +369,9 @@ public class CharacterController2D : MonoBehaviour
 
 	private void MoveVertically(ref Vector2 deltaMovement)
 	{
+		if (deltaMovement.y < 0)
+			State.IsFalling = true;
+
 		// Invoked every frame, because of gravity. Different from Horizontal movement
 		var isGoingUp = deltaMovement.y > 0;
 		var rayDistance = Mathf.Abs (deltaMovement.y) + SkinWidth;
@@ -381,6 +395,8 @@ public class CharacterController2D : MonoBehaviour
 			// **** Break the loop here if we're not hitting anything ****
 			if (!raycastHit)
 				continue;
+
+			State.IsFalling = false;
 
 			// we need to keep track of what we're standing on, so we know if we're on a moving platform
 			if (!isGoingUp)
@@ -406,8 +422,6 @@ public class CharacterController2D : MonoBehaviour
 				deltaMovement.y -= SkinWidth;
 				// we are hitting something above
 				State.IsCollidingAbove = true;
-				if(State.IsJumping)
-					State.IsJumpCollidingAbove = true;
 			}
 			else
 			{
@@ -428,13 +442,7 @@ public class CharacterController2D : MonoBehaviour
 
 	private void EdgeDetect(ref Vector2 deltaMovement)
 	{
-		// My attempt of trying to give the player some jump leniency. Two raycasts being shot down on either side of the player 
-		// to detect ground. If they detect ground, the player can jump. It doesn't really seem to work right now for two reasons:
-		// 1) The player is not jumping very high when falling towards the ground and entering EdgeDetect range. Ideally this should reset the double 
-		// jump and use original jump magnitude, as if the player had touched the ground
-		// 2) As the player moves off of an edge, the raycasts follow, so it doesn't not allow for a very big window. Cast rays from higher up/different location?
-		//
-		// This could/should still be modified to work with enemy AI that is not meant to drop off of ledges
+		//  1 ray on either side to detect edges
 		var rayDistance = 2.0f;
 		var rayDirection = -Vector2.up;
 		var center = (_raycastBottomLeft.x + _raycastBottomRight.x) / 2;
@@ -610,7 +618,7 @@ public class CharacterController2D : MonoBehaviour
 	public void ResetColliderSize()
 	{
 		// Set the player's box collider back to whatever it was at level start
-		_boxCollider.center = boxColliderOriginalCenter;
+		_boxCollider.offset = boxColliderOriginalCenter;
 		_boxCollider.size = boxColliderOriginalSize;
 	}
 
@@ -627,7 +635,7 @@ public class CharacterController2D : MonoBehaviour
 	{		
 		// The value for _boxcollider.center must be manually tweaked for now so that it doesn't cause the player to slightly rise when it's reset upon exiting crouch.
 		// If the player does rise slightly, it cause them to fall through a one way platform
-		_boxCollider.center = new Vector2(_boxCollider.center.x, -1.05f);
+		_boxCollider.offset = new Vector2(_boxCollider.offset.x, -1.05f);
 		_boxCollider.size = new Vector2(_boxCollider.size.x, 3.35f);
 		
 		RecalculateDistanceBetweenRays ();

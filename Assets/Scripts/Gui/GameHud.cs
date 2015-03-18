@@ -6,6 +6,7 @@ public class GameHud : MonoBehaviour
 	public GUISkin Skin;
 	public Player player;
 
+	/*
 	public void OnGUI()
 	{
 		GUI.skin = Skin;
@@ -35,4 +36,5 @@ public class GameHud : MonoBehaviour
 		// When you use BeginArea, you need to also use EndArea
 		GUILayout.EndArea();
 	}
+	*/
 }

@@ -27,7 +27,7 @@ public class CameraTrigger : MonoBehaviour
 	public void Awake()
 	{
 		_originalCameraSmooth = cameraController.Smoothing;
-		_orthoSizeReset = cameraController.camera.orthographicSize;
+		_orthoSizeReset = cameraController.GetComponent<Camera>().orthographicSize;
 	}
 
 	public void OnTriggerStay2D(Collider2D other)
